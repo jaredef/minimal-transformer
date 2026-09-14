@@ -81,6 +81,10 @@ same numbers `run.sh` asserts — and serves one page that shows: the accuracy g
 the **held-out margin crossing zero exactly at the grok step**, the endpoint-equals-prior identity, and the
 three controls (GROKS / NO-GROK / MEMORIZES) side by side.
 
+- **Three-control explorer** — a `GROKS / NO-GROK / MEMORIZES` selector (or click a control card below) drives
+  the whole panel from the already-computed regimes: hold out `s` (not forced) → grokks late; hold out a
+  forced row → generalizes immediately; hold out all three "1" rows → memorizes, never generalizes. The
+  charts, scrubber, live state, and the endpoint-vs-prior card all update to the chosen control.
 - **Step-scrubber** — drag the slider to move **one training step at a time** (every step 0..400). A live
   panel shows train/held accuracy, the held-out margin, `‖M‖`, the held-row map (`s → ?`) and the full
   phase portrait at that step. Watch the grok as a *bifurcation*: `s` starts as its own spurious fixed

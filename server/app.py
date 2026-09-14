@@ -191,6 +191,16 @@ PAGE = r"""<!doctype html>
   .facts { font:12.5px ui-monospace, monospace; color:var(--mut); margin-top:8px; line-height:1.7; }
   .facts b { color:var(--ink); font-weight:600; }
   .hero { margin-top:18px; }
+  .herohint { color:var(--mut); font-size:13px; margin:4px 0 12px; }
+  .seg { display:inline-flex; gap:4px; padding:4px; background:var(--bg); border:1px solid var(--line);
+         border-radius:10px; margin-bottom:6px; flex-wrap:wrap; }
+  .segbtn { background:transparent; border:none; color:var(--mut); font:600 12.5px ui-monospace, monospace;
+            padding:6px 14px; border-radius:7px; cursor:pointer; transition:background .12s, color .12s; }
+  .segbtn:hover { color:var(--ink); }
+  .segbtn.on { background:var(--held); color:#111; }
+  .card[data-k] { cursor:pointer; transition:border-color .12s, transform .12s; }
+  .card[data-k]:hover { border-color:var(--held); transform:translateY(-1px); }
+  .card.sel { border-color:var(--held); box-shadow:0 0 0 1px var(--held); }
   .portrait { margin-top:18px; }
   .mono { font-family:ui-monospace, monospace; }
   .match { color:var(--ok); } .nomatch { color:var(--bad); } .mut { color:var(--mut); }
@@ -697,15 +707,23 @@ function marginChart(reg, curStep){
 }
 
 function heroFacts(reg){
-  const gap = (reg.fit_at!=null && reg.grok_at!=null) ? (reg.grok_at-reg.fit_at) : null;
   const mFit = reg.points.find(p=>p.step===reg.fit_at);
-  return `<div class="facts">
-    train hits 100% at <b>step ${reg.fit_at}</b> &rarr; held-out only at <b>step ${reg.grok_at}</b>
-    (a <b>${gap}-step</b> grok gap).<br>
-    at the fit the held-out margin is <b>${mFit?mFit.margin.toFixed(2):'?'}</b> (wrong); it climbs
-    <b>monotonically</b> and the weight norm keeps <b>rising</b> across the shaded plateau &mdash;
-    the plateau is <b>not</b> a stationary point. The zero-crossing <b>is</b> the grok.
-  </div>`;
+  if(reg.verdict==="GROKS"){
+    const gap = reg.grok_at-reg.fit_at;
+    return `train hits 100% at <b>step ${reg.fit_at}</b> &rarr; held-out only at <b>step ${reg.grok_at}</b>
+      (a <b>${gap}-step</b> grok gap). Held out <b>{${reg.holdout.join(',')}}</b>, which the other rows do
+      <b>not</b> force &mdash; yet the implicit bias generalizes it. At the fit the held-out margin is
+      <b>${mFit?mFit.margin.toFixed(2):'?'}</b> (wrong); it climbs across the shaded plateau and the
+      zero-crossing <b>is</b> the grok.`;
+  }
+  if(reg.verdict==="NO-GROK"){
+    return `held out <b>{${reg.holdout.join(',')}}</b>, a row the others already <b>force</b>. So held-out
+      generalizes at <b>step ${reg.grok_at}</b> &mdash; as soon as (here before) train even fits at
+      <b>step ${reg.fit_at}</b>. No plateau, no implicit-bias phase, <b>no grok gap</b>.`;
+  }
+  return `held out <b>{${reg.holdout.join(',')}}</b> &mdash; every &ldquo;1&rdquo; row, so nothing is left to
+    <b>force</b> them. Train still fits at <b>step ${reg.fit_at}</b>, but held-out <b>never</b> reaches 100%:
+    with no forcing and no implicit-bias target, gradient descent just <b>memorizes</b> the training rows.`;
 }
 
 let HERO=null, IDX=0, PLAY=null, MAXSTEP=1;
@@ -737,8 +755,14 @@ function drawHero(){
      <div class="staterow wide"><span>held map</span><span>${predRows}</span></div>
      <div class="staterow wide"><span>portrait</span><b class="mono ${p.portrait===reg.prior_portrait?'match':''}">${esc(p.portrait)}</b></div>`;
   let phase='before the fit';
-  if(reg.fit_at!=null && p.step>=reg.fit_at) phase = (reg.grok_at!=null && p.step>=reg.grok_at)
-    ? 'GROKKED &mdash; held-out generalized' : 'ON THE PLATEAU &mdash; train fit, margin still climbing';
+  if(reg.fit_at!=null && p.step>=reg.fit_at){
+    if(reg.grok_at!=null && p.step>=reg.grok_at)
+      phase = (reg.verdict==="GROKS") ? 'GROKKED &mdash; held-out generalized' : 'GENERALIZED &mdash; held-out correct';
+    else if(reg.grok_at==null)
+      phase = 'MEMORIZING &mdash; train fit, held-out never generalizes';
+    else
+      phase = 'ON THE PLATEAU &mdash; train fit, margin still climbing';
+  }
   document.getElementById('phase').innerHTML = phase;
   document.getElementById('scrub').value = IDX;
 }
@@ -760,47 +784,76 @@ function redo(){
   }).catch(e=>{ btn.disabled=false; btn.textContent='↻ train again'; });
 }
 
-function render(data){
-  const reg = data.regimes.find(r=>r.verdict==="GROKS") || data.regimes[0];
+let DATA=null;
+
+function portraitCard(reg){
+  const m = reg.portrait_match;
+  const body = m
+    ? `Trained holding out <b>{${reg.holdout.join(',')}}</b>, the SGD endpoint's phase portrait equals the
+       analytic min-L1 prior &mdash; the dynamic result and the static implicit-bias prior are the same object.`
+    : `Holding out every &ldquo;1&rdquo; row, SGD <b>memorizes</b>: its endpoint does <b>not</b> reach the prior
+       portrait, because nothing forced it there. The identity holds only when it generalizes.`;
+  return `<h2>The endpoint vs. the prior <span class="tag ${m?'GROKS':'MEMORIZES'}">${m?'MATCH':'MISMATCH'}</span></h2>
+     <div class="facts">${body}<br>
+       SGD endpoint: <span class="mono ${m?'match':'nomatch'}">${esc(reg.endpoint_portrait)}</span><br>
+       min-L1 prior: <span class="mono ${m?'match':'nomatch'}">${esc(reg.prior_portrait)}</span></div>`;
+}
+
+function selectRegime(key){
+  const reg = DATA.regimes.find(r=>r.key===key) || DATA.regimes[0];
   HERO=reg; IDX=0;
+  const tag=document.getElementById('heroTag'); tag.className='tag '+clsMap[reg.verdict]; tag.textContent=reg.verdict;
+  document.getElementById('scrub').max = reg.points.length-1;
+  buildHeroCharts();
+  drawHero();
+  document.getElementById('facts').innerHTML = heroFacts(reg);
+  document.getElementById('portrait').innerHTML = portraitCard(reg);
+  document.querySelectorAll('#seg .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.k===reg.key));
+  document.querySelectorAll('#controls .card').forEach(c=>c.classList.toggle('sel', c.dataset.k===reg.key));
+}
+
+function render(data){
+  DATA=data;
   document.getElementById('hero').innerHTML =
-    `<h2>The grok, and its cause <span class="tag ${clsMap[reg.verdict]}">${reg.verdict}</span></h2>
+    `<h2>Explore the three controls <span id="heroTag" class="tag"></span></h2>
+     <p class="herohint">Same machine, same training &mdash; pick what to hold out and watch the outcome change.
+       Then <b>drag</b> to step through training, or <b>&#8635; train again</b> from a random start.</p>
+     <div class="seg" id="seg">
+       <button class="segbtn" data-k="groks">GROKS</button>
+       <button class="segbtn" data-k="nogrok">NO-GROK</button>
+       <button class="segbtn" data-k="memorize">MEMORIZES</button>
+     </div>
      <div class="legend"><span><span class="sw" style="background:var(--train)"></span>train accuracy</span>
        <span><span class="sw" style="background:var(--held)"></span>held-out accuracy / margin</span>
-       <span><span class="sw" style="background:var(--ok);opacity:.5"></span>plateau (fit&rarr;grok)</span></div>
+       <span><span class="sw" style="background:var(--ok);opacity:.5"></span>plateau</span></div>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px" class="heropair" id="heroCharts"></div>
      <div class="scrubwrap">
        <button id="redo" class="btn" title="reinitialize and train the NAND transformer again from a fresh random start">&#8635; train again</button>
-       <input type="range" id="scrub" min="0" max="${reg.points.length-1}" value="0" step="1">
+       <input type="range" id="scrub" min="0" max="400" value="0" step="1">
        <span id="phase" class="phase"></span>
      </div>
      <div class="initline mut">init: <b>${data.init}</b>${data.seed!=null?' &middot; seed '+data.seed:''} &middot; drag to step one training step at a time</div>
      <div class="state" id="state"></div>
-     ${heroFacts(reg)}`;
+     <div id="facts" class="facts"></div>`;
   document.getElementById('scrub').addEventListener('input', e=>{ if(PLAY){clearInterval(PLAY);PLAY=null;} setIdx(+e.target.value); });
   document.getElementById('redo').addEventListener('click', redo);
-  buildHeroCharts();
-  drawHero();
-
-  const P=reg;
-  document.getElementById('portrait').innerHTML =
-    `<h2>The endpoint <i>is</i> the prior <span class="tag ${P.portrait_match?'GROKS':'MEMORIZES'}">
-        ${P.portrait_match?'MATCH':'MISMATCH'}</span></h2>
-     <div class="facts">
-       Trained holding out s, the SGD endpoint's phase portrait equals the analytic min-L1 prior portrait
-       from NO-3 &mdash; the dynamic grok and the static implicit-bias prior are the same object.<br>
-       SGD endpoint: <span class="mono ${P.portrait_match?'match':'nomatch'}">${esc(P.endpoint_portrait)}</span><br>
-       min-L1 prior: <span class="mono ${P.portrait_match?'match':'nomatch'}">${esc(P.prior_portrait)}</span>
-     </div>`;
+  document.getElementById('seg').addEventListener('click', e=>{ const b=e.target.closest('.segbtn'); if(b) selectRegime(b.dataset.k); });
 
   document.getElementById('controls').innerHTML = data.regimes.map(r=>`
-    <div class="card">
+    <div class="card" data-k="${r.key}" title="show this control in the explorer above">
       <h2>${r.label} <span class="tag ${clsMap[r.verdict]}">${r.verdict}</span></h2>
       <div class="blurb">${r.blurb}</div>
       ${accuracyChart(r,false)}
       <div class="facts">holdout <b>{${r.holdout.join(',')}}</b> &middot; fit <b>${r.fit_at}</b> &middot;
         grok <b>${r.grok_at==null?'never':r.grok_at}</b></div>
     </div>`).join('');
+  document.getElementById('controls').addEventListener('click', e=>{
+    const c=e.target.closest('.card'); if(!c) return;
+    selectRegime(c.dataset.k);
+    document.getElementById('hero').scrollIntoView({behavior:'smooth', block:'start'});
+  });
+
+  selectRegime('groks');
 }
 
 fetch('/api/data').then(r=>r.json()).then(render)
