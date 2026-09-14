@@ -672,8 +672,8 @@ PAGE = r"""<!doctype html>
   </article>
 </section>
 
-<footer>Deterministic, torch-free. Data computed server-side by <span class="mono">probes/nand_core.py</span>;
-  the same numbers <span class="mono">run.sh</span> asserts. Reload to recompute.</footer>
+<footer>&copy; Jared Foy 2026 &middot;
+  <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></footer>
 
 <script>
 const W=520, H=230, PAD={l:44,r:16,t:16,b:34};
