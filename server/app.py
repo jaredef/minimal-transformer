@@ -496,11 +496,13 @@ PAGE = r"""<!doctype html>
        direction that reduces the error. Repeat thousands of times. Starting from all-zeros, the weight slowly grows
        into one that gets the training rows right.</p>
     <p>The word <b>gradient</b> just means &ldquo;which way is downhill&rdquo; for the error, and <b>descent</b>
-       means we keep stepping downhill. When the steps are taken from small batches of examples rather than all at
-       once, it's called <b>stochastic gradient descent</b>, or <b>SGD</b>, the everyday workhorse that trains
-       almost every modern AI model. So whenever this page says <span class="mono">SGD</span> (as in
-       &ldquo;the <span class="mono">SGD</span> endpoint&rdquo;), it just means <i>the weight this downhill-stepping
-       process settles on</i>. Each drag of the slider on the demo is one such step.</p>
+       means we keep stepping downhill. When the steps are taken from small random batches of examples, it's called
+       <b>stochastic gradient descent</b>, or <b>SGD</b>, the everyday workhorse that trains almost every modern AI
+       model. So whenever this page says <span class="mono">SGD</span> (as in &ldquo;the
+       <span class="mono">SGD</span> endpoint&rdquo;), it just means <i>the weight this downhill-stepping process
+       settles on</i>, and each drag of the slider is one step. (Precise note: this tiny demo actually uses
+       <i>full-batch</i> gradient descent, all the rows every step, since there are only a handful; &ldquo;SGD&rdquo;
+       is used loosely for the family.)</p>
   </article>
 
   <article class="lesson"><span class="num">6</span>
@@ -882,9 +884,10 @@ let DATA=null, CURKEY='groks';
 function portraitCard(reg){
   const m = reg.portrait_match;
   const body = m
-    ? `Trained holding out <b>{${reg.holdout.join(',')}}</b>, the SGD endpoint's ${gl('phase portrait','portrait')}
-       equals the analytic ${gl('min-L1','prior')} prior, the dynamic result and the static
-       ${gl('implicit-bias','implicit-bias')} prior are the same object.`
+    ? `Trained holding out <b>{${reg.holdout.join(',')}}</b>, the trained weight and the analytic
+       ${gl('min-L1','prior')} weight compute the <b>same function</b>: identical ${gl('phase portraits','portrait')}.
+       The solution training reaches equals the one the simplicity search picks (a match of behavior, not of raw
+       weights).`
     : `Holding out every &ldquo;1&rdquo; row, SGD ${gl('memorizes','memorize')}: its endpoint does <b>not</b> reach
        the prior ${gl('portrait','portrait')}, because nothing forced it there. The identity holds only when it
        generalizes.`;
@@ -1153,10 +1156,11 @@ PAGE_EXPLAIN = r"""<!doctype html>
     <div class="layer ml"><div class="lbl">In machine-learning terms</div>
       <p>The task is the <b>NAND</b> truth table, a two-input logic function. It's encoded as a next-token map over
         six symbols (four input rows, two output bits), and the model is a one-layer, tied-embedding transformer
-        with a single small weight matrix, trained by <b>stochastic gradient descent (SGD)</b>, the standard
-        downhill-stepping optimizer behind essentially every modern neural network. NAND is used because it is
+        with a single 3&times;3 weight matrix, trained by gradient descent. NAND is used because it is
         <i>functionally complete</i>, any Boolean circuit can be built from it, so the toy is not a special case
-        but a universal primitive.</p></div>
+        but a universal primitive. Two honest specifics: the embeddings are <b>fixed</b> integers (only the weight
+        <span class="mono">M</span> is learned), and the optimizer is <b>full-batch</b> gradient descent, all
+        training rows every step, no minibatch sampling (the family is loosely called &ldquo;SGD&rdquo;).</p></div>
     <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
       <p>The step is <span class="mono">next = argmax over v of  emb[v] &middot; (I + M) &middot; emb[x]</span>. Apply
         it repeatedly and each input token flows to an output token and stays there, so the learned weight
@@ -1297,8 +1301,8 @@ PAGE_EXPLAIN = r"""<!doctype html>
 
   <section class="topic" id="identity">
     <h2>Endpoint vs. the prior <span class="tag ID">two roads, one answer</span></h2>
-    <p class="subtle">Whenever it truly learns, the weight it trains into is identical to the &ldquo;simplest&rdquo;
-      weight worked out by hand, evidence the late learning is not luck.</p>
+    <p class="subtle">Whenever it truly learns, the <i>function</i> it trains into is identical to the
+      &ldquo;simplest&rdquo; one worked out by search, evidence the late learning is not luck.</p>
     <div class="layer plain"><div class="lbl">In plain terms</div>
       <p>There are two ways to find the simplest rule that fits the examples: work it out with pen and paper ahead
         of time, or let the student slowly train until it settles. The striking result is that when the student
@@ -1306,18 +1310,20 @@ PAGE_EXPLAIN = r"""<!doctype html>
         machine guessing lucky, it is the machine <i>finding</i> the simplest rule consistent with what it was
         shown.</p></div>
     <div class="layer ml"><div class="lbl">In machine-learning terms</div>
-      <p>This is the implicit bias made concrete. The <b>analytic prior</b> (here the minimum-complexity weight,
-        min-L1) and the <b>SGD endpoint</b> coincide: the solution gradient descent reaches equals the one a
-        min-norm / max-margin criterion selects in closed form. It's a rare case where the dynamical
-        characterization (where training goes) and the variational one (what objective the answer minimizes) are
-        shown to be the same object, not merely argued to be. When the setup memorizes instead, they diverge, the
-        endpoint is not the prior, which is exactly why the identity holds <i>only</i> when it generalizes.</p></div>
+      <p>The <b>analytic reference</b> is the minimum-L1-norm weight, found by exhaustive search; the <b>trained
+        weight</b> reaches a solution with the <i>same phase portrait</i> (the same input-output function). Two
+        things keep this honest. First, the match is at the level of the computed function, not the raw parameters.
+        Second, L1 is a computable simplicity proxy, while the bias gradient descent is <i>proven</i> to follow is
+        L2 / max-margin (Soudry et&nbsp;al.), not L1. So this is not a theorem that GD minimizes L1; it is an
+        exactly-checkable observation that, in this setup, the function GD lands on is also the simplest by this
+        measure. When the setup memorizes instead, the two diverge, which is why the match holds <i>only</i> when it
+        generalizes.</p></div>
     <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
-      <p>The demo enumerates the min-L1 weight and prints its phase portrait, then trains a weight by SGD and prints
-        <i>its</i> portrait. In GROKS and NO-GROK they read identically (<span class="mono">O&lt;-Opqr |
-        Z&lt;-Zs</span>): <span class="mono">endpoint == prior</span>. In MEMORIZES they differ:
-        <span class="mono">MISMATCH</span>. Same object when it generalizes; different objects when it only
-        memorizes.</p></div>
+      <p>The demo enumerates the min-L1 weight and prints its phase portrait, then trains a weight by gradient
+        descent and prints <i>its</i> portrait. In GROKS and NO-GROK they read identically
+        (<span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>): <span class="mono">endpoint == prior</span>. In MEMORIZES
+        they differ: <span class="mono">MISMATCH</span>. Same function when it generalizes; a different one when it
+        only memorizes.</p></div>
   </section>
 
   <section class="topic" id="implicit-bias">
@@ -1339,12 +1345,12 @@ PAGE_EXPLAIN = r"""<!doctype html>
         why it is called <i>implicit</i>. It is the engine of grokking: the generalizing solution is the
         bias-preferred one, and it is reached late.</p></div>
     <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
-      <p>Among all the integer weights that fit the shown rows, more than one exists, the <b>survivor set</b>. The
-        implicit bias selects the minimum-complexity member (here <b><a href="#prior">min-L1</a></b>), which is exactly the weight whose
-        portrait is the NAND prior <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>. Gradient descent from a zero
-        start reaches that <i>same</i> weight, which is why <span class="mono">endpoint == prior</span> when it
-        groks. Take the forcing away (the MEMORIZES control) and there is no generalizing target for the bias to
-        prefer, so it never gets there.</p></div>
+      <p>Among all the integer weights that fit the shown rows, more than one exists (the set of consistent
+        weights). Gradient descent's bias picks out the generalizing one, and the exhaustively-found
+        <b><a href="#prior">minimum-L1</a></b> weight has that <i>same function</i>, the NAND rule
+        <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>, so it serves as a concrete, checkable representative of
+        where the bias lands (with the L1-vs-L2 caveat above). Take the forcing away (the MEMORIZES control) and
+        there is no generalizing target for the bias to prefer, so it never gets there.</p></div>
   </section>
 
   <section class="topic" id="prior">
@@ -1360,9 +1366,11 @@ PAGE_EXPLAIN = r"""<!doctype html>
     <div class="layer ml"><div class="lbl">In machine-learning terms</div>
       <p>The <b>L1 norm</b> of a weight is the sum of the absolute values of its entries, <span class="mono">
         &Sigma;|M<sub>ij</sub>|</span>. The <b>prior</b> is the min-L1 member of the set of solutions that fit the
-        training rows. L1 is used as a concrete, exactly-computable stand-in for the min-norm / max-margin solution
-        that gradient descent's implicit bias is known to prefer. The point of this toy is that we don't have to
-        <i>argue</i> which solution the bias picks, we can <i>compute</i> it and check.</p></div>
+        training rows. L1 is chosen as a concrete simplicity measure precisely because the small integer weight
+        space can be searched exhaustively. Note the theory's implicit bias for gradient descent is L2 / max-margin,
+        not L1; here the two select the same <i>function</i>, which is an observation to check, not a theorem. The
+        point of this toy is that we don't have to <i>argue</i> which simple solution training lands on, we can
+        <i>compute</i> a reference and compare.</p></div>
     <div class="layer mt"><div class="lbl">In terms of the minimal transformer (how it is derived)</div>
       <p>The weights are bounded small integers: each of the nine entries of <span class="mono">M</span> is in
         <span class="mono">{-1, 0, +1}</span>, so the entire weight space is just <span class="mono">3<sup>9</sup> =
