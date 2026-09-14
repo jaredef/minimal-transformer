@@ -946,7 +946,13 @@ function renderGame(){
      <p class="gstate">${head}</p>
      <div class="gtable">${rows}</div>
      ${score}
-     <div class="mut" style="font-size:12px;margin-top:10px">Reset: <a href="#" id="greset">quiz again</a></div>`;
+     <div class="mut" style="font-size:12px;margin-top:10px;line-height:1.5">&ldquo;Never practiced&rdquo; does
+       <b>not</b> mean it must fail. A held-out row the other rows already <b>force</b> is answered correctly
+       anyway (that is the whole no-grok case, here row <span class="mono">r</span> is pinned down by
+       <span class="mono">p</span> and <span class="mono">q</span>), and a grokked machine reaches its held-out row
+       through ${gl('implicit bias','implicit-bias')}. A machine only fails where nothing forces the answer and it
+       has not grokked, the memorized case.</div>
+     <div class="mut" style="font-size:12px;margin-top:8px">Reset: <a href="#" id="greset">quiz again</a></div>`;
   document.querySelectorAll('#gseg .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.gk===reg.key));
 }
 
