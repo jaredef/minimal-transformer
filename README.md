@@ -52,6 +52,27 @@ The three regimes line up exactly with forcing: **forced → immediate (no grok)
 the implicit bias → delayed (grok); underdetermined → never (memorize).** That is the whole grokking
 phenomenon, on the smallest gate, visible in time.
 
+### NO-5..6 — the evidence (`probes/nand_grok_evidence_probe.py`)
+
+An accuracy gap is only the *symptom*. These two rungs prove grokking is the *cause* — that learning kept
+happening during the apparent plateau and produced the late jump.
+
+| rung | fact |
+|------|------|
+| **NO-5** `MARGIN-CROSSES-AT-GROK` | on the plateau where train accuracy is already 100% and nothing seems to be happening, the held-out **margin** (`logit(correct) − max other`) is still negative at the fit (−0.91), climbs **monotonically**, and crosses zero **exactly** at the grok step — while `‖M‖` keeps rising. The flip is a smooth threshold crossing driven by continued descent, not luck. The plateau is not a stationary point. |
+| **NO-6** `SGD-ENDPOINT-IS-THE-PRIOR` | trained holding out `s`, the SGD endpoint's phase portrait `O<-Opqr\|Z<-Zs` equals the min-L1 **prior** portrait NO-3 selects analytically. The dynamic grok and the static implicit-bias prior are literally the same object — an independent oracle the SGD run lands on. |
+
+## Visualize (localhost, stdlib only)
+
+```sh
+python3 server/app.py            # then open http://localhost:8000  (optional: app.py <port>)
+```
+
+A dependency-free Python server (`http.server`) computes the trajectories with `probes/nand_core.py` — the
+same numbers `run.sh` asserts — and serves one page that shows: the accuracy gap with the plateau shaded,
+the **held-out margin crossing zero exactly at the grok step**, the endpoint-equals-prior identity, and the
+three controls (GROKS / NO-GROK / MEMORIZES) side by side. Reload to recompute.
+
 ## Run
 
 ```sh

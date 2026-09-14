@@ -1,0 +1,1 @@
+{"vocab": ["p", "q", "r", "s", "Z", "O"], "embeddings": {"p": [2, 2, 1], "q": [0, 1, 0], "r": [2, 1, 1], "s": [2, -1, 1], "Z": [2, 0, 0], "O": [0, -1, 2]}, "form": [["p", "O"], ["q", "O"], ["r", "O"], ["s", "Z"], ["O", "O"], ["Z", "Z"]], "holdout": "s", "range": [-1, 1], "lr": 0.01, "steps": 6000, "checkpoints": [0, 6000], "rung": "SGD-ENDPOINT-IS-THE-PRIOR"}
