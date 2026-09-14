@@ -85,6 +85,9 @@ three controls (GROKS / NO-GROK / MEMORIZES) side by side.
   the whole panel from the already-computed regimes: hold out `s` (not forced) → grokks late; hold out a
   forced row → generalizes immediately; hold out all three "1" rows → memorizes, never generalizes. The
   charts, scrubber, live state, and the endpoint-vs-prior card all update to the chosen control.
+- **Live weight heatmap** — a 3×3 grid of the model's weight matrix `M`, colored by value (blue negative,
+  pink positive, brighter = larger), updating as you scrub. Watch all nine numbers grow from zero as it learns
+  and freeze once the phase portrait locks in — the whole model, visible.
 - **Step-scrubber** — drag the slider to move **one training step at a time** (every step 0..400). A live
   panel shows train/held accuracy, the held-out margin, `‖M‖`, the held-row map (`s → ?`) and the full
   phase portrait at that step. Watch the grok as a *bifurcation*: `s` starts as its own spurious fixed

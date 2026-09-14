@@ -67,8 +67,9 @@ def compute(holdout, seed=None):
             "held_acc": rec["held"][0] / rec["held"][1],
             "margin": rec["held_margin"], "wnorm": rec["wnorm"],
             "portrait": c.portrait(Mi, emb, vocab, d),
-            "held_pred": held_pred,
+            "held_pred": held_pred, "M": Mi,
         })
+    wmax = max((abs(v) for pt in points for row in pt["M"] for v in row), default=1.0) or 1.0
     fit_at = first_100(points, "train")
     grok_at = first_100(points, "held")
     endpoint = c.portrait(M, emb, vocab, d)
@@ -84,7 +85,7 @@ def compute(holdout, seed=None):
     else:
         verdict = "NO-FIT"
     return {
-        "holdout": hs, "lr": lr, "points": points,
+        "holdout": hs, "lr": lr, "points": points, "wmax": wmax,
         "fit_at": fit_at, "grok_at": grok_at, "verdict": verdict,
         "endpoint_portrait": endpoint, "prior_portrait": prior,
         "portrait_match": endpoint == prior,
@@ -220,6 +221,14 @@ PAGE = r"""<!doctype html>
               border-bottom:1px dashed var(--line); padding-bottom:3px; white-space:nowrap; overflow:hidden; }
   .staterow.wide { grid-column:1/-1; }
   .staterow span:first-child { color:var(--mut); font-size:12px; }
+  .weights { margin-top:12px; }
+  .wgrid-wrap { display:flex; gap:18px; align-items:center; flex-wrap:wrap; background:var(--bg);
+                border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .wtitle { font-size:12px; color:var(--mut); margin-bottom:8px; }
+  .wgrid { display:grid; grid-template-columns:repeat(3,48px); grid-auto-rows:48px; gap:5px; }
+  .wcell { display:grid; place-items:center; border:1px solid var(--line); border-radius:6px;
+           font:600 12px ui-monospace, monospace; color:var(--ink); transition:background .08s linear; }
+  .wcap { flex:1; min-width:230px; color:var(--mut); font-size:12.5px; line-height:1.55; }
   footer { color:var(--mut); font-size:12px; max-width:1100px; margin:0 auto; padding:0 20px 40px; }
   a { color:var(--train); }
   .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
@@ -741,6 +750,24 @@ function moveCursor(id,step){
   const el=document.getElementById(id); if(!el) return;
   const x=xpos(step,MAXSTEP).toFixed(1); el.setAttribute('x1',x); el.setAttribute('x2',x);
 }
+function wcolor(v,wmax){
+  const a=Math.min(1,Math.abs(v)/(wmax||1));
+  return v<0 ? `rgba(74,163,255,${a.toFixed(3)})` : `rgba(255,122,194,${a.toFixed(3)})`;
+}
+function weightsHTML(p,wmax){
+  const cells = p.M.map(row=>row.map(v=>
+    `<div class="wcell" style="background:${wcolor(v,wmax)}">${v>=0?'+':''}${v.toFixed(2)}</div>`
+  ).join('')).join('');
+  return `<div class="wgrid-wrap">
+    <div>
+      <div class="wtitle">the model's weights, learning live <span class="mono">(M)</span></div>
+      <div class="wgrid">${cells}</div>
+    </div>
+    <div class="wcap">These nine numbers <b>are</b> the whole model. They start at <b>zero</b> and grow as it
+      learns (blue = negative, pink = positive, brighter = larger). The readout uses <span class="mono">(I + M)</span>,
+      so the diagonal effectively adds 1. When the numbers stop moving, the phase portrait is locked in.</div>
+  </div>`;
+}
 function drawHero(){
   const reg=HERO, p=reg.points[IDX], correct=p.held_acc===1;
   moveCursor('accCursor',p.step); moveCursor('marCursor',p.step);
@@ -767,6 +794,7 @@ function drawHero(){
       phase = 'ON THE PLATEAU, train fit, margin still climbing';
   }
   document.getElementById('phase').innerHTML = phase;
+  document.getElementById('weights').innerHTML = weightsHTML(p, HERO.wmax);
   document.getElementById('scrub').value = IDX;
 }
 function setIdx(i){ IDX=Math.max(0,Math.min(HERO.points.length-1,i)); drawHero(); }
@@ -842,6 +870,7 @@ function render(data){
      </div>
      <div class="initline mut">init: <b>${data.init}</b>${data.seed!=null?' &middot; seed '+data.seed:''} &middot; drag to step one training step at a time</div>
      <div class="state" id="state"></div>
+     <div class="weights" id="weights"></div>
      <div id="facts" class="facts"></div>`;
   document.getElementById('scrub').addEventListener('input', e=>{ if(PLAY){clearInterval(PLAY);PLAY=null;} setIdx(+e.target.value); });
   document.getElementById('redo').addEventListener('click', redo);
