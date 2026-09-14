@@ -456,11 +456,17 @@ PAGE = r"""<!doctype html>
   </article>
 
   <article class="lesson"><span class="num">5</span>
-    <h3>What is training?</h3>
+    <h3>What is training? (and what is SGD?)</h3>
     <p>We don't hand-set the weight. We <b>learn</b> it from examples by <b>gradient descent</b>: show the machine
        the rows, measure how wrong it is, and nudge every number in <span class="mono">M</span> a little in the
        direction that reduces the error. Repeat thousands of times. Starting from all-zeros, the weight slowly grows
        into one that gets the training rows right.</p>
+    <p>The word <b>gradient</b> just means &ldquo;which way is downhill&rdquo; for the error, and <b>descent</b>
+       means we keep stepping downhill. When the steps are taken from small batches of examples rather than all at
+       once, it's called <b>stochastic gradient descent</b>, or <b>SGD</b>, the everyday workhorse that trains
+       almost every modern AI model. So whenever this page says <span class="mono">SGD</span> (as in
+       &ldquo;the <span class="mono">SGD</span> endpoint&rdquo;), it just means <i>the weight this downhill-stepping
+       process settles on</i>. Each drag of the slider on the demo is one such step.</p>
   </article>
 
   <article class="lesson"><span class="num">6</span>
@@ -1011,7 +1017,8 @@ PAGE_EXPLAIN = r"""<!doctype html>
     <div class="layer ml"><div class="lbl">In machine-learning terms</div>
       <p>The task is the <b>NAND</b> truth table, a two-input logic function. It's encoded as a next-token map over
         six symbols (four input rows, two output bits), and the model is a one-layer, tied-embedding transformer
-        with a single small weight matrix, trained by gradient descent. NAND is used because it is
+        with a single small weight matrix, trained by <b>stochastic gradient descent (SGD)</b>, the standard
+        downhill-stepping optimizer behind essentially every modern neural network. NAND is used because it is
         <i>functionally complete</i>, any Boolean circuit can be built from it, so the toy is not a special case
         but a universal primitive.</p></div>
     <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
