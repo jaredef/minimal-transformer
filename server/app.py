@@ -784,7 +784,7 @@ function redo(){
   }).catch(e=>{ btn.disabled=false; btn.textContent='↻ train again'; });
 }
 
-let DATA=null;
+let DATA=null, CURKEY='groks';
 
 function portraitCard(reg){
   const m = reg.portrait_match;
@@ -801,7 +801,7 @@ function portraitCard(reg){
 
 function selectRegime(key){
   const reg = DATA.regimes.find(r=>r.key===key) || DATA.regimes[0];
-  HERO=reg; IDX=0;
+  HERO=reg; IDX=0; CURKEY=reg.key;
   const tag=document.getElementById('heroTag'); tag.className='tag '+clsMap[reg.verdict]; tag.textContent=reg.verdict;
   document.getElementById('scrub').max = reg.points.length-1;
   buildHeroCharts();
@@ -853,7 +853,7 @@ function render(data){
     document.getElementById('hero').scrollIntoView({behavior:'smooth', block:'start'});
   });
 
-  selectRegime('groks');
+  selectRegime(CURKEY);
 }
 
 fetch('/api/data').then(r=>r.json()).then(render)
