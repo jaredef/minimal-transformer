@@ -262,14 +262,18 @@ PAGE = r"""<!doctype html>
 <body>
 <header>
   <div class="topbar">
-    <h1>Grokking on the NAND, made visible</h1>
+    <h1>Watch a tiny AI suddenly learn</h1>
     <a href="#learn" class="learnbtn" id="learnbtn">Learn more &darr;</a>
   </div>
-  <p>The NAND gate read as the orbit of a lowered transformer, its weight learned by SGD from zero init.
-     Grokking is not just a late-rising curve &mdash; it is <b>continued descent across the plateau</b>. Watch the
-     held-out <b>margin</b> climb while training accuracy sits pinned at 100%, and cross zero exactly at the
-     moment generalization happens. Then compare the three controls: whether the held-out row is
-     <i>forced</i> by the training rows decides grok vs. no-grok vs. memorize.</p>
+  <p>Below is a very small artificial &ldquo;brain&rdquo; &mdash; simple enough that every part of it is visible
+     &mdash; learning a basic rule from examples. For a long stretch it looks stuck: it has memorized its practice
+     set but fails anything new. Then, all at once, it <b>clicks</b> and starts getting new cases right. That sudden
+     click has a name: <b>grokking</b>, and this page lets you watch it happen.</p>
+  <p>As the machine practices, a hidden measure of its <i>confidence</i> on a new case keeps climbing even while
+     its visible score sits frozen at 100% &mdash; and the exact instant that confidence tips over is the instant it
+     starts to understand. You can also change which example is kept hidden from practice, and see why the machine
+     sometimes learns the general rule, sometimes learns it instantly, and sometimes only memorizes and never
+     really gets it.</p>
 </header>
 <main>
   <div class="hero card" id="hero"></div>
