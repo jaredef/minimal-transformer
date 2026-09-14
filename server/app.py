@@ -96,6 +96,43 @@ def payload(seed=None):
             "regimes": [dict(r, **compute(r["holdout"], seed=seed)) for r in REGIMES]}
 
 
+def selfcheck():
+    """Reproduce the EXACT run.sh NO-4 verdict on the zero-init default, so a freshly started server is
+    self-evidently the same deterministic machine the CLI asserts -- without needing to run run.sh. Uses the
+    coarse CLI checkpoint grid from the fixture (not the server's per-step grid), so the numbers match the
+    asserted string. Returns the summary and whether it matches the expected zero-init default."""
+    data = c.load(FIX)
+    d = data["_d"]
+    vocab, emb = data["vocab"], data["embeddings"]
+    form = [tuple(x) for x in data["form"]]
+    hs = [data.get("holdout", "s")] if not isinstance(data.get("holdout"), list) else data["holdout"]
+    train_cons = [(a, b) for a, b in form if a not in hs]
+    held_cons = [(a, b) for a, b in form if a in hs]
+    cps = sorted(set(data.get("checkpoints", [0, 10, 25, 50, 100, 200, 400, 800, 1600, 3200, 6000])))
+    M, traj = c.train_sgd(train_cons, emb, vocab, d, data.get("lr", 0.01), max(cps), cps,
+                          held=held_cons, seed=None)
+
+    def first(key):
+        for s in cps:
+            ok, tot = traj[s][key]
+            if tot > 0 and ok == tot:
+                return s
+        return None
+    fit, grok = first("train"), first("held")
+    endpoint = c.portrait(M, emb, vocab, d)
+    lo, hi = data.get("range", [-1, 1])
+    prior = c.portrait(c.min_l1(c.survivors(vocab, emb, form, lo, hi, d), d), emb, vocab, d)
+    verdict = "GROKS" if fit is not None and grok is not None and grok > fit else "OTHER"
+    # the exact expectation the CLI (run.sh NO-4a) asserts for the zero-init default
+    expected = (verdict == "GROKS" and fit == 50 and grok == 100 and endpoint == prior)
+    return {
+        "verdict": verdict, "fit_at": fit, "grok_at": grok,
+        "endpoint_portrait": endpoint, "prior_portrait": prior,
+        "endpoint_is_prior": endpoint == prior,
+        "matches_runsh_no4": expected,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -120,6 +157,8 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError:
                     seed = None
             self._send(200, json.dumps(payload(seed)).encode("utf-8"), "application/json")
+        elif path == "/api/health":
+            self._send(200, json.dumps(selfcheck()).encode("utf-8"), "application/json")
         else:
             self._send(404, b"not found", "text/plain")
 
@@ -369,13 +408,34 @@ fetch('/api/data').then(r=>r.json()).then(render)
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print("minimal-transformer viz on http://localhost:%d  (Ctrl-C to stop)" % port)
+    # Prove the zero-init default is the same deterministic machine run.sh asserts -- BEFORE serving,
+    # and without needing run.sh. Fail loudly if it ever regresses.
+    hc = selfcheck()
+    tag = "OK" if hc["matches_runsh_no4"] else "MISMATCH"
+    print("self-check [%s]: zero-init default -> %s fit@step%s grok@step%s, endpoint==prior:%s "
+          "(identical to run.sh NO-4a; deterministic, no run.sh required)"
+          % (tag, hc["verdict"], hc["fit_at"], hc["grok_at"],
+             "yes" if hc["endpoint_is_prior"] else "no"), flush=True)
+    if not hc["matches_runsh_no4"]:
+        print("REFUSING TO SERVE: the deterministic default no longer matches the asserted CLI verdict.",
+              file=sys.stderr)
+        return 1
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    except OSError as exc:
+        print("could not bind port %d: %s\n(is a server already running? try: python3 server/app.py <other-port>)"
+              % (port, exc), file=sys.stderr)
+        return 1
+    print("minimal-transformer viz on http://localhost:%d  (Ctrl-C to stop)" % port, flush=True)
+    print("  default page load is zero-init and deterministic; the browser step numbers are the EXACT")
+    print("  first-crossing steps (per-step grid), while run.sh reports the coarse-grid crossings -- same run.",
+          flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         print("\nstopped")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

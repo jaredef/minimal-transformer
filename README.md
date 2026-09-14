@@ -68,6 +68,14 @@ happening during the apparent plateau and produced the late jump.
 python3 server/app.py            # then open http://localhost:8000  (optional: app.py <port>)
 ```
 
+You do **not** need to run `run.sh` first. On startup the server runs a self-check that reproduces the exact
+`run.sh` NO-4a verdict on the zero-init default and prints it (`self-check [OK]: zero-init default -> GROKS
+fit@step50 grok@step100, endpoint==prior:yes`); if that ever fails to match, it refuses to serve. The
+default page load is **zero-init and deterministic** — identical bytes every time, the same machine the CLI
+asserts. (`GET /api/health` returns the self-check as JSON.) Only **↻ train again** introduces a random
+start. Note the browser reports the *exact* first-crossing steps (it records every step), while `run.sh`
+reports the coarse-grid crossings — the same run, sampled differently.
+
 A dependency-free Python server (`http.server`) computes the trajectories with `probes/nand_core.py` — the
 same numbers `run.sh` asserts — and serves one page that shows: the accuracy gap with the plateau shaded,
 the **held-out margin crossing zero exactly at the grok step**, the endpoint-equals-prior identity, and the
