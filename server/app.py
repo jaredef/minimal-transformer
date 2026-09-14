@@ -693,7 +693,7 @@ PAGE = r"""<!doctype html>
   </article>
 </section>
 
-<footer>&copy; Jared Foy 2026 &middot;
+<footer>Jared Foy &copy; 2026 &middot;
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></footer>
 
 <script>
@@ -1344,7 +1344,7 @@ PAGE_EXPLAIN = r"""<!doctype html>
 
   <div class="kicker">Deterministic and torch-free. The numbers behind every claim here are computed live on the
     demo page and asserted by the project's test suite. <a href="/">&larr; back to the demo</a><br>
-    &copy; Jared Foy 2026 &middot;
+    Jared Foy &copy; 2026 &middot;
     <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></div>
 </div>
 </body></html>
