@@ -242,6 +242,10 @@ PAGE = r"""<!doctype html>
   .controls-list li { border-bottom:1px dashed var(--line); padding:6px 0; }
   .c-grok{ color:var(--ok);} .c-no{ color:var(--train);} .c-mem{ color:var(--bad); }
   .closer { font-size:16px; font-weight:600; color:var(--ink); margin-top:20px; }
+  .diagram { margin:18px 0 4px; }
+  .diagram svg { width:100%; height:auto; display:block; background:var(--bg);
+                 border:1px solid var(--line); border-radius:10px; }
+  .diagram figcaption { color:var(--mut); font-size:12.5px; line-height:1.5; margin-top:8px; }
   #learn .lesson:last-child { border-bottom:none; }
   #learn .lesson .learnbtn { display:inline-block; margin-top:16px; }
 </style></head>
@@ -303,6 +307,37 @@ PAGE = r"""<!doctype html>
     <p>The step is: <span class="mono">next = argmax over v of  emb[v] &middot; (I + M) &middot; emb[x]</span>. Same
        architecture, same idea of depth &mdash; but <b>no hidden layers</b>. Nothing is buried; the mechanism is on
        the table.</p>
+    <figure class="diagram">
+      <svg viewBox="0 0 720 172" role="img" aria-label="the lowered-transformer step, end to end">
+        <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto">
+          <path d="M0 0 L7 3 L0 6 z" fill="var(--mut)"/></marker></defs>
+        <circle cx="42" cy="58" r="22" fill="var(--panel)" stroke="var(--line)"/>
+        <text x="42" y="63" text-anchor="middle" fill="var(--ink)" font-size="15" font-family="ui-monospace,monospace">x</text>
+        <text x="42" y="98" text-anchor="middle" fill="var(--mut)" font-size="11">token</text>
+        <line x1="68" y1="58" x2="112" y2="58" stroke="var(--mut)" marker-end="url(#a2)"/>
+        <rect x="116" y="36" width="118" height="44" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+        <text x="175" y="55" text-anchor="middle" fill="var(--ink)" font-size="13" font-family="ui-monospace,monospace">emb[x]</text>
+        <text x="175" y="71" text-anchor="middle" fill="var(--mut)" font-size="11">vector</text>
+        <line x1="238" y1="58" x2="282" y2="58" stroke="var(--mut)" marker-end="url(#a2)"/>
+        <rect x="286" y="36" width="118" height="44" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+        <text x="345" y="55" text-anchor="middle" fill="var(--ink)" font-size="13" font-family="ui-monospace,monospace">(I + M)&middot;</text>
+        <text x="345" y="71" text-anchor="middle" fill="var(--mut)" font-size="11">update</text>
+        <line x1="408" y1="58" x2="452" y2="58" stroke="var(--mut)" marker-end="url(#a2)"/>
+        <rect x="456" y="36" width="118" height="44" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+        <text x="515" y="54" text-anchor="middle" fill="var(--ink)" font-size="12">score every</text>
+        <text x="515" y="70" text-anchor="middle" fill="var(--mut)" font-size="11">token</text>
+        <line x1="578" y1="58" x2="620" y2="58" stroke="var(--mut)" marker-end="url(#a2)"/>
+        <circle cx="668" cy="58" r="28" fill="var(--held)"/>
+        <text x="668" y="55" text-anchor="middle" fill="#111" font-size="11" font-weight="700">argmax</text>
+        <text x="668" y="69" text-anchor="middle" fill="#111" font-size="10">next token</text>
+        <path d="M668 88 L668 144 L42 144 L42 82" fill="none" stroke="var(--mut)" stroke-dasharray="4 3" marker-end="url(#a2)"/>
+        <text x="355" y="162" text-anchor="middle" fill="var(--mut)" font-size="11">repeat &mdash; feed the pick back in (this loop is the &ldquo;orbit&rdquo; of lesson 3)</text>
+      </svg>
+      <figcaption>The whole machine, left to right: a token becomes a vector, one legible update
+        <span class="mono">(I+M)</span> transforms it, every token is scored, and the top-scoring one is emitted
+        &mdash; then it repeats. A frontier transformer has this exact shape, with many opaque update layers in the
+        middle instead of one readable matrix.</figcaption>
+    </figure>
   </article>
 
   <article class="lesson"><span class="num">3</span>
@@ -312,6 +347,31 @@ PAGE = r"""<!doctype html>
        eventually settles into a cycle. A resting point it never leaves is a <b>fixed-point attractor</b>; the set
        of starting tokens that flow into it is that attractor's <b>basin</b>. So a lowered transformer is a tiny
        <b>dynamical system</b>: seed it, and watch where it falls.</p>
+    <figure class="diagram">
+      <svg viewBox="0 0 720 150" role="img" aria-label="an orbit running through a transient into a fixed-point attractor">
+        <defs><marker id="a3" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto">
+          <path d="M0 0 L7 3 L0 6 z" fill="var(--mut)"/></marker></defs>
+        <circle cx="80" cy="62" r="24" fill="var(--panel)" stroke="var(--line)"/>
+        <text x="80" y="67" text-anchor="middle" fill="var(--ink)" font-size="14" font-family="ui-monospace,monospace">s&#8320;</text>
+        <line x1="106" y1="62" x2="200" y2="62" stroke="var(--mut)" marker-end="url(#a3)"/>
+        <circle cx="228" cy="62" r="24" fill="var(--panel)" stroke="var(--line)"/>
+        <text x="228" y="67" text-anchor="middle" fill="var(--ink)" font-size="14" font-family="ui-monospace,monospace">s&#8321;</text>
+        <line x1="254" y1="62" x2="348" y2="62" stroke="var(--mut)" marker-end="url(#a3)"/>
+        <circle cx="376" cy="62" r="24" fill="var(--panel)" stroke="var(--line)"/>
+        <text x="376" y="67" text-anchor="middle" fill="var(--ink)" font-size="14" font-family="ui-monospace,monospace">s&#8322;</text>
+        <line x1="402" y1="62" x2="520" y2="62" stroke="var(--mut)" marker-end="url(#a3)"/>
+        <circle cx="556" cy="62" r="30" fill="var(--held)"/>
+        <text x="556" y="67" text-anchor="middle" fill="#111" font-size="15" font-weight="700">A</text>
+        <path d="M537 44 C528 6 584 6 575 44" fill="none" stroke="var(--held)" stroke-width="2" marker-end="url(#a3)"/>
+        <line x1="66" y1="100" x2="402" y2="100" stroke="var(--mut)" opacity=".5"/>
+        <text x="234" y="118" text-anchor="middle" fill="var(--mut)" font-size="11">transient (a one-time run-in)</text>
+        <text x="556" y="118" text-anchor="middle" fill="var(--mut)" font-size="11">attractor</text>
+        <text x="556" y="132" text-anchor="middle" fill="var(--mut)" font-size="11">(fixed point &mdash; it stays)</text>
+      </svg>
+      <figcaption>Start anywhere, follow the arrows: after a short run-in the orbit enters a cycle it never leaves.
+        A <b>fixed point</b> (the loop on <span class="mono">A</span>) is a cycle of length one &mdash; a stable
+        answer. Where you end up depends only on where you started: that is the attractor's basin.</figcaption>
+    </figure>
   </article>
 
   <article class="lesson"><span class="num">4</span>
@@ -322,6 +382,35 @@ PAGE = r"""<!doctype html>
        (00, 01, 10, 11), plus the two output bits <span class="mono">O</span>=1 and <span class="mono">Z</span>=0
        (which are fixed points &mdash; they map to themselves). A correct weight makes each input row step in one
        move to its right answer.</p>
+    <figure class="diagram">
+      <svg viewBox="0 0 720 250" role="img" aria-label="the NAND phase portrait as two basins of attraction">
+        <defs><marker id="a4" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto">
+          <path d="M0 0 L7 3 L0 6 z" fill="var(--mut)"/></marker></defs>
+        <ellipse cx="235" cy="128" rx="205" ry="104" fill="var(--train)" opacity="0.09"/>
+        <ellipse cx="235" cy="128" rx="205" ry="104" fill="none" stroke="var(--train)" stroke-dasharray="5 4" opacity="0.55"/>
+        <text x="235" y="34" text-anchor="middle" fill="var(--train)" font-size="12.5" font-weight="700">basin of O &mdash; NAND = 1</text>
+        <ellipse cx="580" cy="128" rx="118" ry="104" fill="var(--held)" opacity="0.10"/>
+        <ellipse cx="580" cy="128" rx="118" ry="104" fill="none" stroke="var(--held)" stroke-dasharray="5 4" opacity="0.6"/>
+        <text x="580" y="34" text-anchor="middle" fill="var(--held)" font-size="12.5" font-weight="700">basin of Z &mdash; NAND = 0</text>
+        <g font-family="ui-monospace,monospace" font-size="13">
+          <circle cx="120" cy="80" r="18" fill="var(--panel)" stroke="var(--line)"/><text x="120" y="85" text-anchor="middle" fill="var(--ink)">p</text>
+          <circle cx="120" cy="128" r="18" fill="var(--panel)" stroke="var(--line)"/><text x="120" y="133" text-anchor="middle" fill="var(--ink)">q</text>
+          <circle cx="120" cy="176" r="18" fill="var(--panel)" stroke="var(--line)"/><text x="120" y="181" text-anchor="middle" fill="var(--ink)">r</text>
+          <line x1="140" y1="86" x2="300" y2="120" stroke="var(--mut)" marker-end="url(#a4)"/>
+          <line x1="140" y1="128" x2="298" y2="128" stroke="var(--mut)" marker-end="url(#a4)"/>
+          <line x1="140" y1="170" x2="300" y2="136" stroke="var(--mut)" marker-end="url(#a4)"/>
+          <circle cx="332" cy="128" r="30" fill="var(--train)"/><text x="332" y="133" text-anchor="middle" fill="#111" font-weight="700" font-size="15">O</text>
+          <path d="M313 110 C304 74 360 74 351 110" fill="none" stroke="var(--train)" stroke-width="2" marker-end="url(#a4)"/>
+          <circle cx="512" cy="128" r="18" fill="var(--panel)" stroke="var(--line)"/><text x="512" y="133" text-anchor="middle" fill="var(--ink)">s</text>
+          <line x1="532" y1="128" x2="600" y2="128" stroke="var(--mut)" marker-end="url(#a4)"/>
+          <circle cx="632" cy="128" r="30" fill="var(--held)"/><text x="632" y="133" text-anchor="middle" fill="#111" font-weight="700" font-size="15">Z</text>
+          <path d="M613 110 C604 74 660 74 651 110" fill="none" stroke="var(--held)" stroke-width="2" marker-end="url(#a4)"/>
+        </g>
+      </svg>
+      <figcaption>The learned map, drawn as a picture: three input rows (<span class="mono">p, q, r</span>) flow to
+        the output <b>1</b>, and the single row <span class="mono">s</span> flows to <b>0</b>. The two outputs are
+        fixed points (the little self-loops). This 3-to-1 split of the basins <i>is</i> the NAND truth table.</figcaption>
+    </figure>
     <div class="callout"><b>In the demo:</b> when it has learned NAND, the phase portrait reads
        <span class="mono">O&larr;Opqr | Z&larr;Zs</span> &mdash; three input rows fall into &ldquo;1&rdquo;, one row
        (<span class="mono">s</span>) falls into &ldquo;0&rdquo;. <b>The basins of attraction <i>are</i> the truth
