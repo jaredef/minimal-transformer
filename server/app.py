@@ -11,6 +11,8 @@ Serves a single page that SHOWS grokking took place on the NAND lowered transfor
 Run:  python3 server/app.py    then open http://localhost:8000
 """
 import json
+import html
+import inspect
 import os
 import sys
 import time
@@ -228,6 +230,15 @@ PAGE = r"""<!doctype html>
   .gscore { margin-top:12px; font-size:14px; }
   .gscore.gok { color:var(--ok); } .gscore.gno { color:var(--bad); }
   .gstate { font-size:14px; margin:8px 0 2px; }
+  .codeblock { margin:0 0 18px; }
+  .codeblock:last-of-type { margin-bottom:6px; }
+  .codeblock .ctitle { font-size:13.5px; font-weight:600; color:var(--ink); }
+  .codeblock .cintro { color:var(--mut); font-size:12.5px; margin:2px 0 8px; line-height:1.5; }
+  .codeblock pre { margin:0; background:var(--bg); border:1px solid var(--line); border-radius:8px;
+                   padding:12px 14px; overflow-x:auto; }
+  .codeblock code { font:12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color:var(--ink);
+                    white-space:pre; display:block; }
+  .codenote { color:var(--mut); font-size:12.5px; margin-top:4px; }
   @media (max-width:560px){ .grow{ grid-template-columns:1fr auto; row-gap:4px; } .gwant,.gbadge{ grid-column:1; } }
   .portrait { margin-top:18px; }
   .mono { font-family:ui-monospace, monospace; }
@@ -326,6 +337,8 @@ PAGE = r"""<!doctype html>
   <div class="grid" id="controls"></div>
   <h2 style="max-width:1100px;margin:26px auto 10px;font-size:16px;">Quiz the machine</h2>
   <div class="card" id="game"></div>
+  <h2 style="max-width:1100px;margin:26px auto 10px;font-size:16px;">Show me the code</h2>
+  <div class="card" id="codecard">__CODE_BLOCKS__</div>
 </main>
 <section id="learn">
   <div class="learnintro">
@@ -1023,6 +1036,45 @@ document.querySelectorAll('.lesson').forEach(el=>io.observe(el));
 </script>
 </body></html>
 """
+
+
+def _code_blocks():
+    """Build the 'Show me the code' section from the ACTUAL source of nand_core.py, so it can never drift
+    from what the demo runs. Each block is one or two functions plus a one-line intro."""
+    def src(*fns):
+        return html.escape("\n\n".join(inspect.getsource(f).rstrip() for f in fns))
+    blocks = [
+        ("The whole model: one step",
+         "A token becomes a vector, gets updated once by <span class=\"mono\">(I + M)</span>, and the "
+         "highest-scoring token is the next one. That is the entire forward pass, no hidden layers.",
+         src(c.logits, c.predict)),
+        ("Learning: the SGD step",
+         "From an all-zero weight, nudge every number downhill to reduce the error. This exact gradient is "
+         "what the slider steps through; the rest is just recording snapshots to visualize.",
+         src(c.train_sgd)),
+        ("The analytic prior: enumerate, then take the simplest",
+         "No training here at all. List every one of the 3<sup>9</sup> = 19,683 integer weights, keep those "
+         "that fit the rows (the survivor set), and return the smallest by L1. This is the prior the trained "
+         "weight is shown to match.",
+         src(c.survivors, c.min_l1)),
+        ("The phase portrait: iterate to attractors",
+         "Follow each token under the map until it repeats, then group tokens by where they land. This is the "
+         "<span class=\"mono\">O&lt;-Opqr | Z&lt;-Zs</span> readout you see everywhere in the demo.",
+         src(c.orbit, c.portrait)),
+    ]
+    out = []
+    for title, intro, code in blocks:
+        out.append(
+            '<figure class="codeblock"><div class="ctitle">%s</div><div class="cintro">%s</div>'
+            '<pre><code>%s</code></pre></figure>' % (title, intro, code))
+    out.append(
+        '<div class="codenote">This is the whole engine, about 150 lines of dependency-free Python. Full source: '
+        '<a href="https://github.com/jaredef/minimal-transformer/blob/master/probes/nand_core.py" '
+        'target="_blank" rel="noopener">probes/nand_core.py &#8599;</a></div>')
+    return "\n".join(out)
+
+
+PAGE = PAGE.replace("__CODE_BLOCKS__", _code_blocks())
 
 
 PAGE_EXPLAIN = r"""<!doctype html>
