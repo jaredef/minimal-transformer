@@ -265,12 +265,11 @@ PAGE = r"""<!doctype html>
     <h1>Watch a tiny AI suddenly learn</h1>
     <a href="#learn" class="learnbtn" id="learnbtn">Learn more &darr;</a>
   </div>
-  <p>Below is a very small artificial &ldquo;brain&rdquo; &mdash; simple enough that every part of it is visible
-     &mdash; learning a basic rule from examples. For a long stretch it looks stuck: it has memorized its practice
+  <p>Below is a very small artificial &ldquo;brain&rdquo;, simple enough that every part of it is visible, learning a basic rule from examples. For a long stretch it looks stuck: it has memorized its practice
      set but fails anything new. Then, all at once, it <b>clicks</b> and starts getting new cases right. That sudden
      click has a name: <b>grokking</b>, and this page lets you watch it happen.</p>
   <p>As the machine practices, a hidden measure of its <i>confidence</i> on a new case keeps climbing even while
-     its visible score sits frozen at 100% &mdash; and the exact instant that confidence tips over is the instant it
+     its visible score sits frozen at 100%, and the exact instant that confidence tips over is the instant it
      starts to understand. You can also change which example is kept hidden from practice, and see why the machine
      sometimes learns the general rule, sometimes learns it instantly, and sometimes only memorizes and never
      really gets it.</p>
@@ -284,7 +283,7 @@ PAGE = r"""<!doctype html>
 <section id="learn">
   <div class="learnintro">
     <h2>What am I looking at?</h2>
-    <p>A guided tour, from zero. No math background needed &mdash; each step builds on the last, and every idea
+    <p>A guided tour, from zero. No math background needed, each step builds on the last, and every idea
        points back to the live demo above. Scroll on.</p>
   </div>
 
@@ -293,11 +292,11 @@ PAGE = r"""<!doctype html>
     <p>A transformer is the kind of model behind today's AI language systems. Its one job is simple to state:
        <b>given a sequence so far, predict what comes next.</b> It does this in three moves:</p>
     <ol>
-      <li><b>Embed</b> &mdash; turn each token (a word, a symbol) into a list of numbers, a <i>vector</i>, so the
+      <li><b>Embed</b>, turn each token (a word, a symbol) into a list of numbers, a <i>vector</i>, so the
           machine can do arithmetic with meaning.</li>
-      <li><b>Transform</b> &mdash; let those vectors mix and update through a stack of layers. Each layer reads the
+      <li><b>Transform</b>, let those vectors mix and update through a stack of layers. Each layer reads the
           running state and adds to it (the &ldquo;residual stream&rdquo;), so information accumulates.</li>
-      <li><b>Unembed</b> &mdash; turn the final vector back into a score for every possible next token, and pick the
+      <li><b>Unembed</b>, turn the final vector back into a score for every possible next token, and pick the
           top one.</li>
     </ol>
     <p>Feed the pick back in and repeat, and you get generation. That's the whole skeleton: <b>embed &rarr;
@@ -308,7 +307,7 @@ PAGE = r"""<!doctype html>
   <article class="lesson"><span class="num">2</span>
     <h3>What is a &ldquo;lowered&rdquo; transformer?</h3>
     <p><b>Representational lowering</b> means compiling a behavior down into the <i>smallest</i> representation that
-       reproduces it &mdash; and keeping every part legible. The <b>minimal (lowered) transformer</b> here has the
+       reproduces it, and keeping every part legible. The <b>minimal (lowered) transformer</b> here has the
        <i>same skeleton</i> as a frontier model, shrunk until you can see all of it: 6 tokens and one small weight
        matrix <span class="mono">M</span>. Each part lines up one-to-one:</p>
     <table class="map">
@@ -319,7 +318,7 @@ PAGE = r"""<!doctype html>
       <tr><td>billions of opaque weights</td><td>a 3&times;3 matrix you can read</td></tr>
     </table>
     <p>The step is: <span class="mono">next = argmax over v of  emb[v] &middot; (I + M) &middot; emb[x]</span>. Same
-       architecture, same idea of depth &mdash; but <b>no hidden layers</b>. Nothing is buried; the mechanism is on
+       architecture, same idea of depth, but <b>no hidden layers</b>. Nothing is buried; the mechanism is on
        the table.</p>
     <figure class="diagram">
       <svg viewBox="0 0 720 172" role="img" aria-label="the lowered-transformer step, end to end">
@@ -345,18 +344,17 @@ PAGE = r"""<!doctype html>
         <text x="668" y="55" text-anchor="middle" fill="#111" font-size="11" font-weight="700">argmax</text>
         <text x="668" y="69" text-anchor="middle" fill="#111" font-size="10">next token</text>
         <path d="M668 88 L668 144 L42 144 L42 82" fill="none" stroke="var(--mut)" stroke-dasharray="4 3" marker-end="url(#a2)"/>
-        <text x="355" y="162" text-anchor="middle" fill="var(--mut)" font-size="11">repeat &mdash; feed the pick back in (this loop is the &ldquo;orbit&rdquo; of lesson 3)</text>
+        <text x="355" y="162" text-anchor="middle" fill="var(--mut)" font-size="11">repeat, feed the pick back in (this loop is the &ldquo;orbit&rdquo; of lesson 3)</text>
       </svg>
       <figcaption>The whole machine, left to right: a token becomes a vector, one legible update
-        <span class="mono">(I+M)</span> transforms it, every token is scored, and the top-scoring one is emitted
-        &mdash; then it repeats. A frontier transformer has this exact shape, with many opaque update layers in the
+        <span class="mono">(I+M)</span> transforms it, every token is scored, and the top-scoring one is emitted, then it repeats. A frontier transformer has this exact shape, with many opaque update layers in the
         middle instead of one readable matrix.</figcaption>
     </figure>
   </article>
 
   <article class="lesson"><span class="num">3</span>
     <h3>Generation is an &ldquo;orbit&rdquo;</h3>
-    <p>Apply the step to its own output, over and over, and you trace a path through the space of tokens &mdash; a
+    <p>Apply the step to its own output, over and over, and you trace a path through the space of tokens, a
        <b>trajectory</b>, or <i>orbit</i>. Because the map is a fixed, finite, deterministic function, every orbit
        eventually settles into a cycle. A resting point it never leaves is a <b>fixed-point attractor</b>; the set
        of starting tokens that flow into it is that attractor's <b>basin</b>. So a lowered transformer is a tiny
@@ -380,21 +378,21 @@ PAGE = r"""<!doctype html>
         <line x1="66" y1="100" x2="402" y2="100" stroke="var(--mut)" opacity=".5"/>
         <text x="234" y="118" text-anchor="middle" fill="var(--mut)" font-size="11">transient (a one-time run-in)</text>
         <text x="556" y="118" text-anchor="middle" fill="var(--mut)" font-size="11">attractor</text>
-        <text x="556" y="132" text-anchor="middle" fill="var(--mut)" font-size="11">(fixed point &mdash; it stays)</text>
+        <text x="556" y="132" text-anchor="middle" fill="var(--mut)" font-size="11">(fixed point, it stays)</text>
       </svg>
       <figcaption>Start anywhere, follow the arrows: after a short run-in the orbit enters a cycle it never leaves.
-        A <b>fixed point</b> (the loop on <span class="mono">A</span>) is a cycle of length one &mdash; a stable
+        A <b>fixed point</b> (the loop on <span class="mono">A</span>) is a cycle of length one, a stable
         answer. Where you end up depends only on where you started: that is the attractor's basin.</figcaption>
     </figure>
   </article>
 
   <article class="lesson"><span class="num">4</span>
     <h3>The task: NAND, the universal gate</h3>
-    <p>We teach this machine <b>NAND</b> &mdash; a logic gate that outputs 0 only when both inputs are 1, else 1.
+    <p>We teach this machine <b>NAND</b>, a logic gate that outputs 0 only when both inputs are 1, else 1.
        NAND matters because <b>everything a computer can compute can be built out of NAND gates alone.</b> We encode
        its truth table as a next-token map over six tokens: the four input rows <span class="mono">p,q,r,s</span> =
        (00, 01, 10, 11), plus the two output bits <span class="mono">O</span>=1 and <span class="mono">Z</span>=0
-       (which are fixed points &mdash; they map to themselves). A correct weight makes each input row step in one
+       (which are fixed points, they map to themselves). A correct weight makes each input row step in one
        move to its right answer.</p>
     <figure class="diagram">
       <svg viewBox="0 0 720 250" role="img" aria-label="the NAND phase portrait as two basins of attraction">
@@ -402,10 +400,10 @@ PAGE = r"""<!doctype html>
           <path d="M0 0 L7 3 L0 6 z" fill="var(--mut)"/></marker></defs>
         <ellipse cx="235" cy="128" rx="205" ry="104" fill="var(--train)" opacity="0.09"/>
         <ellipse cx="235" cy="128" rx="205" ry="104" fill="none" stroke="var(--train)" stroke-dasharray="5 4" opacity="0.55"/>
-        <text x="235" y="34" text-anchor="middle" fill="var(--train)" font-size="12.5" font-weight="700">basin of O &mdash; NAND = 1</text>
+        <text x="235" y="34" text-anchor="middle" fill="var(--train)" font-size="12.5" font-weight="700">basin of O, NAND = 1</text>
         <ellipse cx="580" cy="128" rx="118" ry="104" fill="var(--held)" opacity="0.10"/>
         <ellipse cx="580" cy="128" rx="118" ry="104" fill="none" stroke="var(--held)" stroke-dasharray="5 4" opacity="0.6"/>
-        <text x="580" y="34" text-anchor="middle" fill="var(--held)" font-size="12.5" font-weight="700">basin of Z &mdash; NAND = 0</text>
+        <text x="580" y="34" text-anchor="middle" fill="var(--held)" font-size="12.5" font-weight="700">basin of Z, NAND = 0</text>
         <g font-family="ui-monospace,monospace" font-size="13">
           <circle cx="120" cy="80" r="18" fill="var(--panel)" stroke="var(--line)"/><text x="120" y="85" text-anchor="middle" fill="var(--ink)">p</text>
           <circle cx="120" cy="128" r="18" fill="var(--panel)" stroke="var(--line)"/><text x="120" y="133" text-anchor="middle" fill="var(--ink)">q</text>
@@ -426,7 +424,7 @@ PAGE = r"""<!doctype html>
         fixed points (the little self-loops). This 3-to-1 split of the basins <i>is</i> the NAND truth table.</figcaption>
     </figure>
     <div class="callout"><b>In the demo:</b> when it has learned NAND, the phase portrait reads
-       <span class="mono">O&larr;Opqr | Z&larr;Zs</span> &mdash; three input rows fall into &ldquo;1&rdquo;, one row
+       <span class="mono">O&larr;Opqr | Z&larr;Zs</span>, three input rows fall into &ldquo;1&rdquo;, one row
        (<span class="mono">s</span>) falls into &ldquo;0&rdquo;. <b>The basins of attraction <i>are</i> the truth
        table.</b> The 3-to-1 split is NAND.</p>
   </article>
@@ -442,7 +440,7 @@ PAGE = r"""<!doctype html>
   <article class="lesson"><span class="num">6</span>
     <h3>What is grokking?</h3>
     <p>Here is the strange part. A model can fit its <i>training</i> data quickly, then sit on a long flat plateau
-       where nothing visible improves &mdash; and only <i>much later</i> suddenly start getting <b>held-out</b>
+       where nothing visible improves, and only <i>much later</i> suddenly start getting <b>held-out</b>
        (never-trained) cases right. That delayed click is <b>grokking</b>.</p>
     <figure class="diagram">
       <svg viewBox="0 0 720 200" role="img" aria-label="the grokking gap: train fits early, held-out generalizes late">
@@ -471,17 +469,17 @@ PAGE = r"""<!doctype html>
     </figure>
     <div class="callout"><b>In the demo:</b> we hold out one row, <span class="mono">s</span>. Training fits the
        other rows by <b>step 50</b>, but <span class="mono">s</span> only becomes correct around <b>step 94</b>.
-       Drag the slider through that gap &mdash; train accuracy is pinned at 100% the whole time, yet something is
+       Drag the slider through that gap, train accuracy is pinned at 100% the whole time, yet something is
        clearly still happening.</p>
   </article>
 
   <article class="lesson"><span class="num">7</span>
     <h3>Why the delay? (the plateau isn't idle)</h3>
-    <p>The flat stretch only <i>looks</i> idle. Watch the <b>held-out margin</b> &mdash; how confidently the machine
+    <p>The flat stretch only <i>looks</i> idle. Watch the <b>held-out margin</b>, how confidently the machine
        gets <span class="mono">s</span> right (negative = wrong, positive = right). At the fit it is
        <b>&minus;0.9</b> (confidently wrong); across the plateau it climbs steadily; and it <b>crosses zero at the
        exact step grokking happens.</b> Meanwhile the weight's size keeps growing. The model is still learning on
-       the plateau &mdash; sharpening its margin, not resting. The late jump is a smooth threshold crossing, not a
+       the plateau, sharpening its margin, not resting. The late jump is a smooth threshold crossing, not a
        lucky accident.</p>
     <figure class="diagram">
       <svg viewBox="0 0 720 200" role="img" aria-label="the held-out margin climbing across the plateau and crossing zero at the grok">
@@ -498,7 +496,7 @@ PAGE = r"""<!doctype html>
         <text x="357" y="112" fill="var(--ok)" font-size="10.5">crosses 0 = grok</text>
         <text x="214" y="180" fill="var(--mut)" font-size="10">plateau (train already 100%)</text>
       </svg>
-      <figcaption>The held-out margin (pink) starts negative &mdash; confidently wrong &mdash; climbs steadily
+      <figcaption>The held-out margin (pink) starts negative, confidently wrong, climbs steadily
         across the plateau, and crosses zero at the exact step it groks, while the weight size
         <span class="mono">&#8214;M&#8214;</span> (dashed) keeps rising. The flat region isn't idle; it's the model
         sharpening until the answer tips over.</figcaption>
@@ -511,7 +509,7 @@ PAGE = r"""<!doctype html>
 
   <article class="lesson"><span class="num">8</span>
     <h3>Why does it generalize at all?</h3>
-    <p>The held-out row was never trained &mdash; so why does the machine ever get it right? Because of <b>implicit
+    <p>The held-out row was never trained, so why does the machine ever get it right? Because of <b>implicit
        bias</b>. Among all the weights that fit the training rows, gradient descent quietly drifts toward the
        <i>simplest</i> one (smallest, largest-margin). And that simplest solution happens to also get the held-out
        row right. Generalization is the bias <b>choosing which attractor</b> an undetermined case falls into.</p>
@@ -535,25 +533,23 @@ PAGE = r"""<!doctype html>
       </svg>
       <figcaption>Two roads, one destination: the simplest weight worked out analytically (left) and the weight
         gradient descent actually reaches (right) produce the <i>identical</i> phase portrait. The static
-        implicit-bias prior and the dynamic grok are literally the same object &mdash;
-        <span class="mono">endpoint == prior</span> in the demo.</figcaption>
+        implicit-bias prior and the dynamic grok are literally the same object, <span class="mono">endpoint == prior</span> in the demo.</figcaption>
     </figure>
     <div class="callout"><b>We can check this exactly:</b> compute the simplest weight analytically (the
        &ldquo;min-L1 prior&rdquo;). It predicts <span class="mono">s&rarr;Z</span>. The trained network converges to
-       the <i>very same phase portrait</i>. <b>The static prior and the dynamic grok are the same object</b> &mdash;
-       shown in the demo as <span class="mono">endpoint == prior</span>.</p>
+       the <i>very same phase portrait</i>. <b>The static prior and the dynamic grok are the same object</b>, shown in the demo as <span class="mono">endpoint == prior</span>.</p>
   </article>
 
   <article class="lesson"><span class="num">9</span>
     <h3>How do we know it's real, not luck?</h3>
-    <p>One curve rising late proves little. What makes it a claim is the <b>three controls</b> &mdash; same machine,
+    <p>One curve rising late proves little. What makes it a claim is the <b>three controls</b>, same machine,
        same training, differing only in whether the training rows <i>force</i> the held-out answer:</p>
     <ul class="controls-list">
-      <li><b class="c-grok">GROKS</b> &mdash; hold out <span class="mono">s</span> (not forced): generalizes
+      <li><b class="c-grok">GROKS</b>, hold out <span class="mono">s</span> (not forced): generalizes
           <i>late</i>.</li>
-      <li><b class="c-no">NO-GROK</b> &mdash; hold out a redundant row (forced by the others): generalizes
+      <li><b class="c-no">NO-GROK</b>, hold out a redundant row (forced by the others): generalizes
           <i>immediately</i>.</li>
-      <li><b class="c-mem">MEMORIZES</b> &mdash; hold out all three &ldquo;1&rdquo; rows (nothing left to force
+      <li><b class="c-mem">MEMORIZES</b>, hold out all three &ldquo;1&rdquo; rows (nothing left to force
           them): <i>never</i> generalizes.</li>
     </ul>
     <figure class="diagram">
@@ -584,12 +580,12 @@ PAGE = r"""<!doctype html>
           <text x="600" y="165" text-anchor="middle" fill="var(--mut)" font-size="10.5">&rarr; never generalizes</text>
         </g>
       </svg>
-      <figcaption>Same machine, same training &mdash; only the held-out choice changes. Faint blue is train
+      <figcaption>Same machine, same training, only the held-out choice changes. Faint blue is train
         accuracy (always fits); pink is held-out accuracy. Whether the held-out row is <i>forced</i> by the
         rest decides everything: late (grok), immediate (no-grok), or never (memorize).</figcaption>
     </figure>
     <p>Grokking happens in exactly one case: when the data doesn't force the answer but the implicit bias still
-       points at it. And it isn't a fluke of the starting point &mdash; press <b>&#8635; train again</b> and it
+       points at it. And it isn't a fluke of the starting point, press <b>&#8635; train again</b> and it
        groks every time from a fresh random start, always landing on the same answer.</p>
   </article>
 
@@ -599,11 +595,11 @@ PAGE = r"""<!doctype html>
        transformer is a <b>microscope</b> for the same phenomena:</p>
     <ul>
       <li><b>Fully interpretable.</b> Every weight and every intermediate is legible. You <i>watch</i> the
-          mechanism instead of guessing &mdash; the opposite of reverse-engineering a billion-parameter net.</li>
+          mechanism instead of guessing, the opposite of reverse-engineering a billion-parameter net.</li>
       <li><b>A controlled lab for grokking.</b> The exact effect seen in big models, reduced to something you can
           compute end-to-end, falsify, and replay.</li>
       <li><b>It bridges theory and practice.</b> The analytic implicit-bias prior and the real SGD run land on the
-          same attractor &mdash; theory and dynamics, shown to be one thing.</li>
+          same attractor, theory and dynamics, shown to be one thing.</li>
       <li><b>It teaches what &ldquo;it works&rdquo; means.</b> Generalization is not magic: it is the implicit bias
           selecting an attractor for a case the data left open. Here you can see that, step by step.</li>
     </ul>
@@ -618,7 +614,7 @@ PAGE = r"""<!doctype html>
           <text x="80" y="86">?</text><text x="130" y="112">?</text><text x="185" y="80">?</text>
           <text x="230" y="118">?</text><text x="110" y="140">?</text><text x="205" y="140">?</text><text x="159" y="98">?</text>
         </g>
-        <text x="159" y="172" text-anchor="middle" fill="var(--mut)" font-size="11">billions of weights &mdash; opaque</text>
+        <text x="159" y="172" text-anchor="middle" fill="var(--mut)" font-size="11">billions of weights, opaque</text>
         <line x1="300" y1="100" x2="392" y2="100" stroke="var(--mut)" marker-end="url(#a10)"/>
         <text x="346" y="90" text-anchor="middle" fill="var(--mut)" font-size="10.5">lower</text>
         <text x="346" y="116" text-anchor="middle" fill="var(--mut)" font-size="10.5">&amp; make legible</text>
@@ -636,9 +632,9 @@ PAGE = r"""<!doctype html>
       </svg>
       <figcaption>Same phenomena, two ways to look. A frontier model hides its mechanism in billions of weights you
         can only probe at; the minimal transformer shrinks the <i>same</i> architecture until every weight and
-        every step is on the table &mdash; a microscope for grokking, generalization, and implicit bias.</figcaption>
+        every step is on the table, a microscope for grokking, generalization, and implicit bias.</figcaption>
     </figure>
-    <p class="closer">Same architecture as a frontier transformer, small enough to hold in your head &mdash; and
+    <p class="closer">Same architecture as a frontier transformer, small enough to hold in your head, and
        grokking, made visible.</p>
     <a href="#top" class="learnbtn" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">&uarr; Back to the demo</a>
   </article>
@@ -716,16 +712,16 @@ function heroFacts(reg){
     const gap = reg.grok_at-reg.fit_at;
     return `train hits 100% at <b>step ${reg.fit_at}</b> &rarr; held-out only at <b>step ${reg.grok_at}</b>
       (a <b>${gap}-step</b> grok gap). Held out <b>{${reg.holdout.join(',')}}</b>, which the other rows do
-      <b>not</b> force &mdash; yet the implicit bias generalizes it. At the fit the held-out margin is
+      <b>not</b> force, yet the implicit bias generalizes it. At the fit the held-out margin is
       <b>${mFit?mFit.margin.toFixed(2):'?'}</b> (wrong); it climbs across the shaded plateau and the
       zero-crossing <b>is</b> the grok.`;
   }
   if(reg.verdict==="NO-GROK"){
     return `held out <b>{${reg.holdout.join(',')}}</b>, a row the others already <b>force</b>. So held-out
-      generalizes at <b>step ${reg.grok_at}</b> &mdash; as soon as (here before) train even fits at
+      generalizes at <b>step ${reg.grok_at}</b>, as soon as (here before) train even fits at
       <b>step ${reg.fit_at}</b>. No plateau, no implicit-bias phase, <b>no grok gap</b>.`;
   }
-  return `held out <b>{${reg.holdout.join(',')}}</b> &mdash; every &ldquo;1&rdquo; row, so nothing is left to
+  return `held out <b>{${reg.holdout.join(',')}}</b>, every &ldquo;1&rdquo; row, so nothing is left to
     <b>force</b> them. Train still fits at <b>step ${reg.fit_at}</b>, but held-out <b>never</b> reaches 100%:
     with no forcing and no implicit-bias target, gradient descent just <b>memorizes</b> the training rows.`;
 }
@@ -761,11 +757,11 @@ function drawHero(){
   let phase='before the fit';
   if(reg.fit_at!=null && p.step>=reg.fit_at){
     if(reg.grok_at!=null && p.step>=reg.grok_at)
-      phase = (reg.verdict==="GROKS") ? 'GROKKED &mdash; held-out generalized' : 'GENERALIZED &mdash; held-out correct';
+      phase = (reg.verdict==="GROKS") ? 'GROKKED, held-out generalized' : 'GENERALIZED, held-out correct';
     else if(reg.grok_at==null)
-      phase = 'MEMORIZING &mdash; train fit, held-out never generalizes';
+      phase = 'MEMORIZING, train fit, held-out never generalizes';
     else
-      phase = 'ON THE PLATEAU &mdash; train fit, margin still climbing';
+      phase = 'ON THE PLATEAU, train fit, margin still climbing';
   }
   document.getElementById('phase').innerHTML = phase;
   document.getElementById('scrub').value = IDX;
@@ -794,7 +790,7 @@ function portraitCard(reg){
   const m = reg.portrait_match;
   const body = m
     ? `Trained holding out <b>{${reg.holdout.join(',')}}</b>, the SGD endpoint's phase portrait equals the
-       analytic min-L1 prior &mdash; the dynamic result and the static implicit-bias prior are the same object.`
+       analytic min-L1 prior, the dynamic result and the static implicit-bias prior are the same object.`
     : `Holding out every &ldquo;1&rdquo; row, SGD <b>memorizes</b>: its endpoint does <b>not</b> reach the prior
        portrait, because nothing forced it there. The identity holds only when it generalizes.`;
   return `<h2>The endpoint vs. the prior <span class="tag ${m?'GROKS':'MEMORIZES'}">${m?'MATCH':'MISMATCH'}</span></h2>
@@ -820,7 +816,7 @@ function render(data){
   DATA=data;
   document.getElementById('hero').innerHTML =
     `<h2>Explore the three controls <span id="heroTag" class="tag"></span></h2>
-     <p class="herohint">Same machine, same training &mdash; pick what to hold out and watch the outcome change.
+     <p class="herohint">Same machine, same training, pick what to hold out and watch the outcome change.
        Then <b>drag</b> to step through training, or <b>&#8635; train again</b> from a random start.</p>
      <div class="seg" id="seg">
        <button class="segbtn" data-k="groks">GROKS</button>
