@@ -250,6 +250,7 @@ PAGE = r"""<!doctype html>
   .learnbtn:hover { border-color:var(--held); transform:translateY(-1px); }
   a.term { color:var(--held); text-decoration:none; border-bottom:1px dotted var(--held); cursor:pointer; }
   a.term:hover { border-bottom-style:solid; }
+  .learnbtn.sm { display:inline-block; margin-top:10px; padding:5px 12px; font-size:12px; }
   /* tutorial */
   #learn { max-width:760px; margin:56px auto 0; padding:0 20px; }
   .learnintro { border-top:1px solid var(--line); padding-top:40px; }
@@ -734,6 +735,9 @@ function marginChart(reg, curStep){
 function gl(text, anchor){
   return `<a class="term" href="/explain#${anchor}" target="_blank" rel="noopener">${text}</a>`;
 }
+function learnLink(href,label){
+  return `<a class="learnbtn sm" href="${href}" target="_blank" rel="noopener">${label} &#8599;</a>`;
+}
 function heroFacts(reg){
   const mFit = reg.points.find(p=>p.step===reg.fit_at);
   if(reg.verdict==="GROKS"){
@@ -862,8 +866,10 @@ function selectRegime(key){
   document.getElementById('timenote').innerHTML =
     `&#9201; this run actually learned in about <b>${ms} ms</b> of real compute (${reg.steps} training steps). `
     + `You're watching it in slow motion: the animation stretches that to ~2.5 s, roughly <b>${slow}&times;</b> slower, so the change is visible.`;
-  document.getElementById('facts').innerHTML = heroFacts(reg);
-  document.getElementById('portrait').innerHTML = portraitCard(reg);
+  document.getElementById('facts').innerHTML = heroFacts(reg)
+    + learnLink('/explain#'+reg.key, 'What does this mean?');
+  document.getElementById('portrait').innerHTML = portraitCard(reg)
+    + learnLink('/explain#identity', 'What does this mean?');
   document.querySelectorAll('#seg .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.k===reg.key));
   document.querySelectorAll('#controls .card').forEach(c=>c.classList.toggle('sel', c.dataset.k===reg.key));
 }
