@@ -137,3 +137,8 @@ Extracted and extended from the GCCS corpus (`machines/transformer-nand-orbit`, 
 dynamic after `machines/transformer-grokking-dynamics`, GRK-1). NO-4 is new here: the SGD-in-time grok on
 the NAND encoding itself, so the NAND grok is witnessed as both a prior-conditional static and a training
 dynamic controlled the same way.
+
+## License
+
+© Jared Foy 2026. Licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — you may share
+and adapt this work, including commercially, as long as you give appropriate credit. See [`LICENSE`](LICENSE).
