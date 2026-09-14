@@ -210,10 +210,47 @@ PAGE = r"""<!doctype html>
   .staterow span:first-child { color:var(--mut); font-size:12px; }
   footer { color:var(--mut); font-size:12px; max-width:1100px; margin:0 auto; padding:0 20px 40px; }
   a { color:var(--train); }
+  .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+  .learnbtn { flex:none; background:var(--panel); border:1px solid var(--line); color:var(--ink);
+              border-radius:999px; padding:8px 16px; font:600 13px system-ui; text-decoration:none;
+              white-space:nowrap; transition:border-color .15s, transform .15s; }
+  .learnbtn:hover { border-color:var(--held); transform:translateY(-1px); }
+  /* tutorial */
+  #learn { max-width:760px; margin:56px auto 0; padding:0 20px; }
+  .learnintro { border-top:1px solid var(--line); padding-top:40px; }
+  .learnintro h2 { font-size:24px; margin:0 0 6px; }
+  .learnintro p { color:var(--mut); font-size:15px; max-width:60ch; }
+  .lesson { position:relative; padding:26px 0 26px 54px; border-bottom:1px solid var(--line);
+            opacity:0; transform:translateY(16px); transition:opacity .5s ease, transform .5s ease; }
+  .lesson.in { opacity:1; transform:none; }
+  .lesson .num { position:absolute; left:0; top:26px; width:36px; height:36px; border-radius:50%;
+                 display:grid; place-items:center; background:var(--held); color:#111;
+                 font:700 16px ui-monospace, monospace; }
+  .lesson h3 { font-size:19px; margin:2px 0 10px; }
+  .lesson p, .lesson li { font-size:15px; line-height:1.65; color:var(--ink); }
+  .lesson ol, .lesson ul { padding-left:20px; } .lesson li { margin:6px 0; }
+  .lesson i { color:var(--mut); font-style:italic; }
+  .callout { background:var(--bg); border:1px solid var(--line); border-left:3px solid var(--held);
+             border-radius:8px; padding:12px 14px; margin-top:14px; font-size:14px; color:var(--mut); }
+  .callout b:first-child { color:var(--held); }
+  table.map { width:100%; border-collapse:collapse; margin:12px 0; font-size:13.5px; }
+  table.map th, table.map td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line);
+                               vertical-align:top; }
+  table.map th { color:var(--mut); font-weight:600; }
+  table.map tr td:first-child { color:var(--mut); width:46%; }
+  .controls-list { list-style:none; padding-left:0; }
+  .controls-list li { border-bottom:1px dashed var(--line); padding:6px 0; }
+  .c-grok{ color:var(--ok);} .c-no{ color:var(--train);} .c-mem{ color:var(--bad); }
+  .closer { font-size:16px; font-weight:600; color:var(--ink); margin-top:20px; }
+  #learn .lesson:last-child { border-bottom:none; }
+  #learn .lesson .learnbtn { display:inline-block; margin-top:16px; }
 </style></head>
 <body>
 <header>
-  <h1>Grokking on the NAND, made visible</h1>
+  <div class="topbar">
+    <h1>Grokking on the NAND, made visible</h1>
+    <a href="#learn" class="learnbtn" id="learnbtn">Learn more &darr;</a>
+  </div>
   <p>The NAND gate read as the orbit of a lowered transformer, its weight learned by SGD from zero init.
      Grokking is not just a late-rising curve &mdash; it is <b>continued descent across the plateau</b>. Watch the
      held-out <b>margin</b> climb while training accuracy sits pinned at 100%, and cross zero exactly at the
@@ -226,6 +263,153 @@ PAGE = r"""<!doctype html>
   <h2 style="max-width:1100px;margin:26px auto 10px;font-size:16px;">The three controls</h2>
   <div class="grid" id="controls"></div>
 </main>
+<section id="learn">
+  <div class="learnintro">
+    <h2>What am I looking at?</h2>
+    <p>A guided tour, from zero. No math background needed &mdash; each step builds on the last, and every idea
+       points back to the live demo above. Scroll on.</p>
+  </div>
+
+  <article class="lesson"><span class="num">1</span>
+    <h3>What is a transformer?</h3>
+    <p>A transformer is the kind of model behind today's AI language systems. Its one job is simple to state:
+       <b>given a sequence so far, predict what comes next.</b> It does this in three moves:</p>
+    <ol>
+      <li><b>Embed</b> &mdash; turn each token (a word, a symbol) into a list of numbers, a <i>vector</i>, so the
+          machine can do arithmetic with meaning.</li>
+      <li><b>Transform</b> &mdash; let those vectors mix and update through a stack of layers. Each layer reads the
+          running state and adds to it (the &ldquo;residual stream&rdquo;), so information accumulates.</li>
+      <li><b>Unembed</b> &mdash; turn the final vector back into a score for every possible next token, and pick the
+          top one.</li>
+    </ol>
+    <p>Feed the pick back in and repeat, and you get generation. That's the whole skeleton: <b>embed &rarr;
+       transform &rarr; unembed &rarr; repeat.</b> A frontier model does this with billions of numbers you cannot
+       read; the parts, though, are exactly these.</p>
+  </article>
+
+  <article class="lesson"><span class="num">2</span>
+    <h3>What is a &ldquo;lowered&rdquo; transformer?</h3>
+    <p><b>Representational lowering</b> means compiling a behavior down into the <i>smallest</i> representation that
+       reproduces it &mdash; and keeping every part legible. The <b>minimal (lowered) transformer</b> here has the
+       <i>same skeleton</i> as a frontier model, shrunk until you can see all of it: 6 tokens and one small weight
+       matrix <span class="mono">M</span>. Each part lines up one-to-one:</p>
+    <table class="map">
+      <tr><th>Frontier transformer</th><th>This minimal transformer</th></tr>
+      <tr><td>token &rarr; embedding vector</td><td><span class="mono">emb[x]</span>, a short list of integers</td></tr>
+      <tr><td>a stack of layers updating a hidden state</td><td>one legible update <span class="mono">(I + M)</span> on the vector</td></tr>
+      <tr><td>unembed &rarr; softmax &rarr; sample</td><td>score every token, take the <span class="mono">argmax</span></td></tr>
+      <tr><td>billions of opaque weights</td><td>a 3&times;3 matrix you can read</td></tr>
+    </table>
+    <p>The step is: <span class="mono">next = argmax over v of  emb[v] &middot; (I + M) &middot; emb[x]</span>. Same
+       architecture, same idea of depth &mdash; but <b>no hidden layers</b>. Nothing is buried; the mechanism is on
+       the table.</p>
+  </article>
+
+  <article class="lesson"><span class="num">3</span>
+    <h3>Generation is an &ldquo;orbit&rdquo;</h3>
+    <p>Apply the step to its own output, over and over, and you trace a path through the space of tokens &mdash; a
+       <b>trajectory</b>, or <i>orbit</i>. Because the map is a fixed, finite, deterministic function, every orbit
+       eventually settles into a cycle. A resting point it never leaves is a <b>fixed-point attractor</b>; the set
+       of starting tokens that flow into it is that attractor's <b>basin</b>. So a lowered transformer is a tiny
+       <b>dynamical system</b>: seed it, and watch where it falls.</p>
+  </article>
+
+  <article class="lesson"><span class="num">4</span>
+    <h3>The task: NAND, the universal gate</h3>
+    <p>We teach this machine <b>NAND</b> &mdash; a logic gate that outputs 0 only when both inputs are 1, else 1.
+       NAND matters because <b>everything a computer can compute can be built out of NAND gates alone.</b> We encode
+       its truth table as a next-token map over six tokens: the four input rows <span class="mono">p,q,r,s</span> =
+       (00, 01, 10, 11), plus the two output bits <span class="mono">O</span>=1 and <span class="mono">Z</span>=0
+       (which are fixed points &mdash; they map to themselves). A correct weight makes each input row step in one
+       move to its right answer.</p>
+    <div class="callout"><b>In the demo:</b> when it has learned NAND, the phase portrait reads
+       <span class="mono">O&larr;Opqr | Z&larr;Zs</span> &mdash; three input rows fall into &ldquo;1&rdquo;, one row
+       (<span class="mono">s</span>) falls into &ldquo;0&rdquo;. <b>The basins of attraction <i>are</i> the truth
+       table.</b> The 3-to-1 split is NAND.</p>
+  </article>
+
+  <article class="lesson"><span class="num">5</span>
+    <h3>What is training?</h3>
+    <p>We don't hand-set the weight. We <b>learn</b> it from examples by <b>gradient descent</b>: show the machine
+       the rows, measure how wrong it is, and nudge every number in <span class="mono">M</span> a little in the
+       direction that reduces the error. Repeat thousands of times. Starting from all-zeros, the weight slowly grows
+       into one that gets the training rows right.</p>
+  </article>
+
+  <article class="lesson"><span class="num">6</span>
+    <h3>What is grokking?</h3>
+    <p>Here is the strange part. A model can fit its <i>training</i> data quickly, then sit on a long flat plateau
+       where nothing visible improves &mdash; and only <i>much later</i> suddenly start getting <b>held-out</b>
+       (never-trained) cases right. That delayed click is <b>grokking</b>.</p>
+    <div class="callout"><b>In the demo:</b> we hold out one row, <span class="mono">s</span>. Training fits the
+       other rows by <b>step 50</b>, but <span class="mono">s</span> only becomes correct around <b>step 94</b>.
+       Drag the slider through that gap &mdash; train accuracy is pinned at 100% the whole time, yet something is
+       clearly still happening.</p>
+  </article>
+
+  <article class="lesson"><span class="num">7</span>
+    <h3>Why the delay? (the plateau isn't idle)</h3>
+    <p>The flat stretch only <i>looks</i> idle. Watch the <b>held-out margin</b> &mdash; how confidently the machine
+       gets <span class="mono">s</span> right (negative = wrong, positive = right). At the fit it is
+       <b>&minus;0.9</b> (confidently wrong); across the plateau it climbs steadily; and it <b>crosses zero at the
+       exact step grokking happens.</b> Meanwhile the weight's size keeps growing. The model is still learning on
+       the plateau &mdash; sharpening its margin, not resting. The late jump is a smooth threshold crossing, not a
+       lucky accident.</p>
+    <div class="callout"><b>In the demo:</b> the right-hand chart is the margin; scrub to the shaded band and
+       watch the phase portrait <i>flip</i>: <span class="mono">s</span> starts as its own dead-end
+       (<span class="mono">s&larr;s</span>), and at the crossing its basin is swallowed into
+       <span class="mono">Z</span> (<span class="mono">Z&larr;Zs</span>). That reorganization <i>is</i> the grok.</p>
+  </article>
+
+  <article class="lesson"><span class="num">8</span>
+    <h3>Why does it generalize at all?</h3>
+    <p>The held-out row was never trained &mdash; so why does the machine ever get it right? Because of <b>implicit
+       bias</b>. Among all the weights that fit the training rows, gradient descent quietly drifts toward the
+       <i>simplest</i> one (smallest, largest-margin). And that simplest solution happens to also get the held-out
+       row right. Generalization is the bias <b>choosing which attractor</b> an undetermined case falls into.</p>
+    <div class="callout"><b>We can check this exactly:</b> compute the simplest weight analytically (the
+       &ldquo;min-L1 prior&rdquo;). It predicts <span class="mono">s&rarr;Z</span>. The trained network converges to
+       the <i>very same phase portrait</i>. <b>The static prior and the dynamic grok are the same object</b> &mdash;
+       shown in the demo as <span class="mono">endpoint == prior</span>.</p>
+  </article>
+
+  <article class="lesson"><span class="num">9</span>
+    <h3>How do we know it's real, not luck?</h3>
+    <p>One curve rising late proves little. What makes it a claim is the <b>three controls</b> &mdash; same machine,
+       same training, differing only in whether the training rows <i>force</i> the held-out answer:</p>
+    <ul class="controls-list">
+      <li><b class="c-grok">GROKS</b> &mdash; hold out <span class="mono">s</span> (not forced): generalizes
+          <i>late</i>.</li>
+      <li><b class="c-no">NO-GROK</b> &mdash; hold out a redundant row (forced by the others): generalizes
+          <i>immediately</i>.</li>
+      <li><b class="c-mem">MEMORIZES</b> &mdash; hold out all three &ldquo;1&rdquo; rows (nothing left to force
+          them): <i>never</i> generalizes.</li>
+    </ul>
+    <p>Grokking happens in exactly one case: when the data doesn't force the answer but the implicit bias still
+       points at it. And it isn't a fluke of the starting point &mdash; press <b>&#8635; train again</b> and it
+       groks every time from a fresh random start, always landing on the same answer.</p>
+  </article>
+
+  <article class="lesson"><span class="num">10</span>
+    <h3>What value does this have for machine learning?</h3>
+    <p>Grokking, generalization, and implicit bias are debated in models far too large to inspect. This minimal
+       transformer is a <b>microscope</b> for the same phenomena:</p>
+    <ul>
+      <li><b>Fully interpretable.</b> Every weight and every intermediate is legible. You <i>watch</i> the
+          mechanism instead of guessing &mdash; the opposite of reverse-engineering a billion-parameter net.</li>
+      <li><b>A controlled lab for grokking.</b> The exact effect seen in big models, reduced to something you can
+          compute end-to-end, falsify, and replay.</li>
+      <li><b>It bridges theory and practice.</b> The analytic implicit-bias prior and the real SGD run land on the
+          same attractor &mdash; theory and dynamics, shown to be one thing.</li>
+      <li><b>It teaches what &ldquo;it works&rdquo; means.</b> Generalization is not magic: it is the implicit bias
+          selecting an attractor for a case the data left open. Here you can see that, step by step.</li>
+    </ul>
+    <p class="closer">Same architecture as a frontier transformer, small enough to hold in your head &mdash; and
+       grokking, made visible.</p>
+    <a href="#top" class="learnbtn" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">&uarr; Back to the demo</a>
+  </article>
+</section>
+
 <footer>Deterministic, torch-free. Data computed server-side by <span class="mono">probes/nand_core.py</span>;
   the same numbers <span class="mono">run.sh</span> asserts. Reload to recompute.</footer>
 
@@ -401,6 +585,16 @@ function render(data){
 
 fetch('/api/data').then(r=>r.json()).then(render)
   .catch(e=>{document.getElementById('hero').textContent='error: '+e;});
+
+// smooth-scroll to the tutorial, and progressively reveal each lesson on scroll
+document.getElementById('learnbtn').addEventListener('click', e=>{
+  e.preventDefault();
+  document.getElementById('learn').scrollIntoView({behavior:'smooth', block:'start'});
+});
+const io = new IntersectionObserver(entries=>{
+  entries.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
+}, {threshold:0.15});
+document.querySelectorAll('.lesson').forEach(el=>io.observe(el));
 </script>
 </body></html>
 """
