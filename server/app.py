@@ -229,6 +229,10 @@ PAGE = r"""<!doctype html>
   .wcell { display:grid; place-items:center; border:1px solid var(--line); border-radius:6px;
            font:600 12px ui-monospace, monospace; color:var(--ink); transition:background .08s linear; }
   .wcap { flex:1; min-width:230px; color:var(--mut); font-size:12.5px; line-height:1.55; }
+  .pnote { color:var(--mut); font-size:12px; margin-top:10px; line-height:1.5;
+           border-top:1px dashed var(--line); padding-top:8px; }
+  .terms { font-size:12.5px; margin-top:10px; }
+  .terms a { margin:0 2px; }
   footer { color:var(--mut); font-size:12px; max-width:1100px; margin:0 auto; padding:0 20px 40px; }
   a { color:var(--train); }
   .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
@@ -827,7 +831,10 @@ function portraitCard(reg){
   return `<h2>The endpoint vs. the prior <span class="tag ${m?'GROKS':'MEMORIZES'}">${m?'MATCH':'MISMATCH'}</span></h2>
      <div class="facts">${body}<br>
        SGD endpoint: <span class="mono ${m?'match':'nomatch'}">${esc(reg.endpoint_portrait)}</span><br>
-       min-L1 prior: <span class="mono ${m?'match':'nomatch'}">${esc(reg.prior_portrait)}</span></div>`;
+       min-L1 prior: <span class="mono ${m?'match':'nomatch'}">${esc(reg.prior_portrait)}</span></div>
+     <div class="pnote">Reading it: <span class="mono">X&lt;-Yz</span> means tokens <b>Y</b> and <b>z</b> both settle
+       on <b>X</b>. So <span class="mono">O&lt;-Opqr</span> = p, q, r all land on the bit 1.
+       <a href="/explain#portrait" target="_blank" rel="noopener">how to read this &#8599;</a></div>`;
 }
 
 function learnLink(href,label){
@@ -871,7 +878,10 @@ function render(data){
      <div class="initline mut">init: <b>${data.init}</b>${data.seed!=null?' &middot; seed '+data.seed:''} &middot; drag to step one training step at a time</div>
      <div class="state" id="state"></div>
      <div class="weights" id="weights"></div>
-     <div id="facts" class="facts"></div>`;
+     <div id="facts" class="facts"></div>
+     <div class="terms mut">New here?
+       <a href="/explain#implicit-bias" target="_blank" rel="noopener">what is &ldquo;implicit bias&rdquo;?</a>
+       &middot; <a href="/explain#portrait" target="_blank" rel="noopener">how to read the portrait?</a></div>`;
   document.getElementById('scrub').addEventListener('input', e=>{ if(PLAY){clearInterval(PLAY);PLAY=null;} setIdx(+e.target.value); });
   document.getElementById('redo').addEventListener('click', redo);
   document.getElementById('seg').addEventListener('click', e=>{ const b=e.target.closest('.segbtn'); if(b) selectRegime(b.dataset.k); });
@@ -964,10 +974,12 @@ PAGE_EXPLAIN = r"""<!doctype html>
     bottom, or jump to the result you clicked from.</p>
   <div class="toc">
     <a href="#setup">The machine &amp; the task</a>
+    <a href="#portrait">Reading the portrait</a>
     <a href="#groks">GROKS</a>
     <a href="#nogrok">NO-GROK</a>
     <a href="#memorize">MEMORIZES</a>
     <a href="#identity">Endpoint vs. prior</a>
+    <a href="#implicit-bias">Implicit bias</a>
     <a href="#why">Why it matters</a>
   </div>
 
@@ -991,6 +1003,34 @@ PAGE_EXPLAIN = r"""<!doctype html>
         <span class="mono">M</span> is fully described by its <b>phase portrait</b>: which inputs land on
         <span class="mono">O</span> (the bit 1) and which land on <span class="mono">Z</span> (the bit 0). A correct
         NAND weight reads <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>.</p></div>
+  </section>
+
+  <section class="topic" id="portrait">
+    <h2>Reading a phase portrait</h2>
+    <p class="subtle">Those little strings like <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span> are a compact map
+      of the whole trained model. Here is how to read them.</p>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>Read the arrow as <b>&ldquo;lands on.&rdquo;</b> Each group is one destination followed by everything that
+        ends up there. <span class="mono">O&lt;-Opqr</span> means the inputs <span class="mono">p, q, r</span> (and
+        <span class="mono">O</span> itself) all settle on the answer <b>1</b>; <span class="mono">Z&lt;-Zs</span>
+        means <span class="mono">s</span> settles on <b>0</b>. A tidy two-group map like this is the machine getting
+        the rule right. If instead you see something like <span class="mono">p&lt;-pq</span>, that means
+        <span class="mono">p</span> became its own little dead-end that also swallowed <span class="mono">q</span>,
+        a wrong pocket the model got stuck in, a tell-tale sign it memorized rather than learned the rule.</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p>The map is deterministic, so the state space partitions into <b>basins of attraction</b>, each written
+        <span class="mono">attractor&lt;-members</span>: the fixed point (or cycle) it converges to, and the states
+        that flow into it. The correct NAND function has exactly <b>two</b> basins, one per output bit. Any extra
+        basin, or an input token that is its own fixed point, means the learned map is <i>not</i> the target
+        function, it is some other function that merely happens to agree on the training rows.</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
+      <p>Each token is iterated under <span class="mono">f(x) = argmax emb[v]&middot;(I+M)&middot;emb[x]</span>. The
+        target reads <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>: basin of <span class="mono">O</span> is
+        <span class="mono">{O,p,q,r}</span>, basin of <span class="mono">Z</span> is <span class="mono">{Z,s}</span>.
+        The memorizing endpoint <span class="mono">O&lt;-O | Z&lt;-Zrs | p&lt;-pq</span> reads: <span class="mono">O
+        </span> attracts only itself, <span class="mono">Z</span> attracts <span class="mono">{Z,r,s}</span>, and
+        <span class="mono">p</span> is a spurious fixed point that also captured <span class="mono">q</span>. Three
+        basins, wrong outputs, no NAND, exactly what memorization looks like as a picture.</p></div>
   </section>
 
   <section class="topic" id="groks">
@@ -1086,6 +1126,33 @@ PAGE_EXPLAIN = r"""<!doctype html>
         Z&lt;-Zs</span>): <span class="mono">endpoint == prior</span>. In MEMORIZES they differ:
         <span class="mono">MISMATCH</span>. Same object when it generalizes; different objects when it only
         memorizes.</p></div>
+  </section>
+
+  <section class="topic" id="implicit-bias">
+    <h2>What &ldquo;implicit bias&rdquo; means</h2>
+    <p class="subtle">The phrase runs through this whole story. It is the reason the machine generalizes at all,
+      and the reason grokking happens on the schedule it does.</p>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>Often many different answers fit the practice examples equally well. Something still has to decide which
+        one the machine actually ends up with, and the training process has a built-in, unspoken preference: it
+        drifts toward the <b>simplest, most clear-cut</b> answer, even though nobody wrote that rule down. That
+        hidden preference is the <b>implicit bias</b>. It is why, faced with an example the practice set left open,
+        the machine tends to land on the sensible general rule instead of some odd answer that only fits what it
+        was shown.</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p>An overparameterized model has <i>many</i> zero-loss solutions; the optimizer chooses among them. For
+        gradient descent on separable (and homogeneous) problems, the chosen one is the <b>max-margin / min-norm</b>
+        solution (Soudry et&nbsp;al.), reached during the margin-growing phase <i>after</i> the loss is already
+        near zero. Crucially it is not a term in the loss, it is a property of the optimization trajectory, which is
+        why it is called <i>implicit</i>. It is the engine of grokking: the generalizing solution is the
+        bias-preferred one, and it is reached late.</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
+      <p>Among all the integer weights that fit the shown rows, more than one exists, the <b>survivor set</b>. The
+        implicit bias selects the minimum-complexity member (here <b>min-L1</b>), which is exactly the weight whose
+        portrait is the NAND prior <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>. Gradient descent from a zero
+        start reaches that <i>same</i> weight, which is why <span class="mono">endpoint == prior</span> when it
+        groks. Take the forcing away (the MEMORIZES control) and there is no generalizing target for the bias to
+        prefer, so it never gets there.</p></div>
   </section>
 
   <section class="topic" id="why">
