@@ -65,7 +65,19 @@ python3 probes/nand_orbit_probe.py   fixtures/grok-is-prior-conditional.json
 python3 probes/nand_grok_sgd_probe.py fixtures/nand-groks-in-time.json
 ```
 
-To watch the grok happen, the SGD probe prints the first checkpoint each accuracy crosses 100%; edit a
+The SGD probe also prints an **ASCII accuracy curve** (train vs held-out, over checkpoints) to *stderr* —
+stdout stays the single machine-readable verdict line, so `run.sh` still asserts it exactly. The `<-fit`
+and `<-grok` markers bracket the gap:
+
+```
+  step |  train acc            | held-out acc
+  -----+-----------------------+-----------------------
+     50| #################### 100%| ....................   0% <-fit
+    100| #################### 100%| #################### 100% <-grok
+  gap: train hits 100% at step50, held-out only at step100 -- delayed generalization (grok)
+```
+
+To watch the grok happen, the probe reports the first checkpoint each accuracy crosses 100%; edit a
 fixture's `lr` / `steps` / `checkpoints` to widen or narrow the gap. `lr` down widens it (train and grok
 both delayed, grok more), `lr` up narrows it.
 

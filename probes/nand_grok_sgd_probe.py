@@ -88,6 +88,29 @@ def first_100(snaps, cps, index):
     return None
 
 
+def render_curve(snaps, cps, train_at, held_at):
+    # ASCII accuracy curves (train vs held-out) over checkpoints, on stderr so stdout stays the
+    # single machine-readable verdict line. The grok is the horizontal gap between the two 100% marks.
+    width = 20  # columns of the accuracy bar (0..100%)
+    lines = ["", "  step |  train acc            | held-out acc          ",
+             "  -----+-----------------------+-----------------------"]
+    for cp in cps:
+        (to, tt), (ho, ht) = snaps[cp]
+        tf = to / tt if tt else 0.0
+        hf = ho / ht if ht else 0.0
+        tb = "#" * round(tf * width) + "." * (width - round(tf * width))
+        hb = "#" * round(hf * width) + "." * (width - round(hf * width))
+        tmark = " <-fit" if cp == train_at else ""
+        hmark = " <-grok" if cp == held_at else ""
+        lines.append("  %5d| %s %3d%%%s| %s %3d%%%s"
+                     % (cp, tb, round(tf * 100), "".ljust(0), hb, round(hf * 100), tmark + hmark))
+    if train_at is not None and held_at is not None and held_at > train_at:
+        lines.append("  gap: train hits 100%% at step%d, held-out only at step%d -- delayed generalization (grok)"
+                     % (train_at, held_at))
+    lines.append("")
+    print("\n".join(lines), file=sys.stderr)
+
+
 def run(path):
     with open(path, "r", encoding="utf-8") as handle:
         data = json.load(handle)
@@ -108,6 +131,7 @@ def run(path):
     train_at = first_100(snaps, cps, 0)
     held_at = first_100(snaps, cps, 1)
     ho = "".join(held_syms)
+    render_curve(snaps, cps, train_at, held_at)
 
     if train_at is None:
         print("NO-FIT holdout=%s train never fits reason=unsatisfiable" % ho)
