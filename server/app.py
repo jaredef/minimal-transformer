@@ -13,6 +13,7 @@ Run:  python3 server/app.py    then open http://localhost:8000
 import json
 import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -53,6 +54,10 @@ def compute(holdout, seed=None):
     train_cons = [(a, b) for a, b in form if a not in hs]
     held_cons = [(a, b) for a, b in form if a in hs]
     lr = data.get("lr", 0.01)
+    # honest wall-clock cost of the actual learning: a bare run (no per-step recording), same seed
+    t0 = time.perf_counter()
+    c.train_sgd(train_cons, emb, vocab, d, lr, max(CHECKPOINTS), [max(CHECKPOINTS)], held=None, seed=seed)
+    train_ms = (time.perf_counter() - t0) * 1000.0
     M, traj = c.train_sgd(train_cons, emb, vocab, d, lr, max(CHECKPOINTS), CHECKPOINTS,
                           held=held_cons, seed=seed)
     points = []
@@ -86,6 +91,7 @@ def compute(holdout, seed=None):
         verdict = "NO-FIT"
     return {
         "holdout": hs, "lr": lr, "points": points, "wmax": wmax,
+        "train_ms": round(train_ms, 1), "steps": max(CHECKPOINTS),
         "fit_at": fit_at, "grok_at": grok_at, "verdict": verdict,
         "endpoint_portrait": endpoint, "prior_portrait": prior,
         "portrait_match": endpoint == prior,
@@ -213,6 +219,8 @@ PAGE = r"""<!doctype html>
          font:600 13px system-ui; cursor:pointer; }
   .phase { font:600 12px ui-monospace, monospace; color:var(--ink); white-space:nowrap; }
   .initline { font-size:11.5px; margin-top:6px; }
+  .timenote { font-size:12.5px; margin-top:6px; background:var(--bg); border:1px solid var(--line);
+              border-left:3px solid var(--ok); border-radius:0 8px 8px 0; padding:8px 12px; line-height:1.5; }
   .btn:disabled { opacity:.6; cursor:default; }
   .state { margin-top:12px; display:grid; grid-template-columns:repeat(5,1fr);
            gap:6px 18px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; }
@@ -847,6 +855,10 @@ function selectRegime(key){
   document.getElementById('scrub').max = reg.points.length-1;
   buildHeroCharts();
   drawHero();
+  const ms=reg.train_ms, slow=Math.max(1,Math.round(2500/ms));
+  document.getElementById('timenote').innerHTML =
+    `&#9201; this run actually learned in about <b>${ms} ms</b> of real compute (${reg.steps} training steps). `
+    + `You're watching it in slow motion: the animation stretches that to ~2.5 s, roughly <b>${slow}&times;</b> slower, so the change is visible.`;
   document.getElementById('facts').innerHTML = heroFacts(reg)
     + learnLink('/explain#'+reg.key, 'What does this mean?');
   document.getElementById('portrait').innerHTML = portraitCard(reg)
@@ -876,6 +888,7 @@ function render(data){
        <span id="phase" class="phase"></span>
      </div>
      <div class="initline mut">init: <b>${data.init}</b>${data.seed!=null?' &middot; seed '+data.seed:''} &middot; drag to step one training step at a time</div>
+     <div class="timenote mut" id="timenote"></div>
      <div class="state" id="state"></div>
      <div class="weights" id="weights"></div>
      <div id="facts" class="facts"></div>
