@@ -542,6 +542,38 @@ PAGE = r"""<!doctype html>
       <li><b class="c-mem">MEMORIZES</b> &mdash; hold out all three &ldquo;1&rdquo; rows (nothing left to force
           them): <i>never</i> generalizes.</li>
     </ul>
+    <figure class="diagram">
+      <svg viewBox="0 0 720 176" role="img" aria-label="the three controls: grok, no-grok, memorize">
+        <g>
+          <text x="120" y="22" text-anchor="middle" fill="var(--ok)" font-size="12.5" font-weight="700">GROKS</text>
+          <line x1="30" y1="128" x2="210" y2="128" stroke="var(--grid)"/>
+          <path d="M30 128 Q60 44 82 44 L210 44" fill="none" stroke="var(--train)" stroke-width="1.5" opacity="0.55"/>
+          <rect x="96" y="40" width="40" height="92" fill="var(--ok)" opacity="0.08"/>
+          <path d="M30 128 L118 128 C122 128 122 44 126 44 L210 44" fill="none" stroke="var(--held)" stroke-width="2.5"/>
+          <text x="120" y="150" text-anchor="middle" fill="var(--mut)" font-size="10.5">hold out s (not forced)</text>
+          <text x="120" y="165" text-anchor="middle" fill="var(--mut)" font-size="10.5">&rarr; generalizes late</text>
+        </g>
+        <g>
+          <text x="360" y="22" text-anchor="middle" fill="var(--train)" font-size="12.5" font-weight="700">NO-GROK</text>
+          <line x1="270" y1="128" x2="450" y2="128" stroke="var(--grid)"/>
+          <path d="M270 128 Q300 44 322 44 L450 44" fill="none" stroke="var(--train)" stroke-width="1.5" opacity="0.55"/>
+          <path d="M270 128 C288 128 300 44 320 44 L450 44" fill="none" stroke="var(--held)" stroke-width="2.5"/>
+          <text x="360" y="150" text-anchor="middle" fill="var(--mut)" font-size="10.5">hold out a forced row</text>
+          <text x="360" y="165" text-anchor="middle" fill="var(--mut)" font-size="10.5">&rarr; generalizes at once</text>
+        </g>
+        <g>
+          <text x="600" y="22" text-anchor="middle" fill="var(--bad)" font-size="12.5" font-weight="700">MEMORIZES</text>
+          <line x1="510" y1="128" x2="690" y2="128" stroke="var(--grid)"/>
+          <path d="M510 128 Q540 44 562 44 L690 44" fill="none" stroke="var(--train)" stroke-width="1.5" opacity="0.55"/>
+          <path d="M510 128 L690 128" fill="none" stroke="var(--held)" stroke-width="2.5"/>
+          <text x="600" y="150" text-anchor="middle" fill="var(--mut)" font-size="10.5">hold out all &ldquo;1&rdquo; rows</text>
+          <text x="600" y="165" text-anchor="middle" fill="var(--mut)" font-size="10.5">&rarr; never generalizes</text>
+        </g>
+      </svg>
+      <figcaption>Same machine, same training &mdash; only the held-out choice changes. Faint blue is train
+        accuracy (always fits); pink is held-out accuracy. Whether the held-out row is <i>forced</i> by the
+        rest decides everything: late (grok), immediate (no-grok), or never (memorize).</figcaption>
+    </figure>
     <p>Grokking happens in exactly one case: when the data doesn't force the answer but the implicit bias still
        points at it. And it isn't a fluke of the starting point &mdash; press <b>&#8635; train again</b> and it
        groks every time from a fresh random start, always landing on the same answer.</p>
@@ -561,6 +593,37 @@ PAGE = r"""<!doctype html>
       <li><b>It teaches what &ldquo;it works&rdquo; means.</b> Generalization is not magic: it is the implicit bias
           selecting an attractor for a case the data left open. Here you can see that, step by step.</li>
     </ul>
+    <figure class="diagram">
+      <svg viewBox="0 0 720 200" role="img" aria-label="the minimal transformer as a microscope on a frontier model">
+        <defs><marker id="a10" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto">
+          <path d="M0 0 L7 3 L0 6 z" fill="var(--mut)"/></marker></defs>
+        <rect x="34" y="46" width="250" height="108" rx="12" fill="var(--ink)" opacity="0.10"/>
+        <rect x="34" y="46" width="250" height="108" rx="12" fill="none" stroke="var(--line)" stroke-dasharray="5 4"/>
+        <text x="159" y="38" text-anchor="middle" fill="var(--mut)" font-size="12" font-weight="600">frontier transformer</text>
+        <g fill="var(--mut)" font-size="17" opacity="0.55" text-anchor="middle" font-family="ui-monospace,monospace">
+          <text x="80" y="86">?</text><text x="130" y="112">?</text><text x="185" y="80">?</text>
+          <text x="230" y="118">?</text><text x="110" y="140">?</text><text x="205" y="140">?</text><text x="159" y="98">?</text>
+        </g>
+        <text x="159" y="172" text-anchor="middle" fill="var(--mut)" font-size="11">billions of weights &mdash; opaque</text>
+        <line x1="300" y1="100" x2="392" y2="100" stroke="var(--mut)" marker-end="url(#a10)"/>
+        <text x="346" y="90" text-anchor="middle" fill="var(--mut)" font-size="10.5">lower</text>
+        <text x="346" y="116" text-anchor="middle" fill="var(--mut)" font-size="10.5">&amp; make legible</text>
+        <g>
+          <rect x="470" y="62" width="120" height="76" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+          <g stroke="var(--line)"><line x1="510" y1="62" x2="510" y2="138"/><line x1="550" y1="62" x2="550" y2="138"/>
+            <line x1="470" y1="87" x2="590" y2="87"/><line x1="470" y1="113" x2="590" y2="113"/></g>
+          <g fill="var(--train)" opacity="0.8"><rect x="474" y="66" width="32" height="17"/><rect x="554" y="117" width="32" height="17"/></g>
+          <g fill="var(--held)" opacity="0.8"><rect x="514" y="91" width="32" height="17"/></g>
+          <text x="530" y="156" text-anchor="middle" fill="var(--ink)" font-size="12" font-weight="600">minimal transformer</text>
+          <text x="530" y="172" text-anchor="middle" fill="var(--mut)" font-size="11">every weight legible</text>
+        </g>
+        <circle cx="560" cy="100" r="46" fill="none" stroke="var(--ok)" stroke-width="3" opacity="0.85"/>
+        <line x1="593" y1="133" x2="622" y2="162" stroke="var(--ok)" stroke-width="5" opacity="0.85" stroke-linecap="round"/>
+      </svg>
+      <figcaption>Same phenomena, two ways to look. A frontier model hides its mechanism in billions of weights you
+        can only probe at; the minimal transformer shrinks the <i>same</i> architecture until every weight and
+        every step is on the table &mdash; a microscope for grokking, generalization, and implicit bias.</figcaption>
+    </figure>
     <p class="closer">Same architecture as a frontier transformer, small enough to hold in your head &mdash; and
        grokking, made visible.</p>
     <a href="#top" class="learnbtn" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">&uarr; Back to the demo</a>
