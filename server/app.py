@@ -372,7 +372,7 @@ PAGE = r"""<!doctype html>
         <line x1="402" y1="62" x2="520" y2="62" stroke="var(--mut)" marker-end="url(#a3)"/>
         <circle cx="556" cy="62" r="30" fill="var(--held)"/>
         <text x="556" y="67" text-anchor="middle" fill="#111" font-size="15" font-weight="700">A</text>
-        <path d="M537 44 C528 6 584 6 575 44" fill="none" stroke="var(--held)" stroke-width="2" marker-end="url(#a3)"/>
+        <path d="M544 35 C526 -3 586 -3 568 35" fill="none" stroke="var(--held)" stroke-width="2" marker-end="url(#a3)"/>
         <line x1="66" y1="100" x2="402" y2="100" stroke="var(--mut)" opacity=".5"/>
         <text x="234" y="118" text-anchor="middle" fill="var(--mut)" font-size="11">transient (a one-time run-in)</text>
         <text x="556" y="118" text-anchor="middle" fill="var(--mut)" font-size="11">attractor</text>
