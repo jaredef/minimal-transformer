@@ -870,8 +870,8 @@ function portraitCard(reg){
   const m = reg.portrait_match;
   const body = m
     ? `Trained holding out <b>{${reg.holdout.join(',')}}</b>, the SGD endpoint's ${gl('phase portrait','portrait')}
-       equals the analytic min-L1 prior, the dynamic result and the static ${gl('implicit-bias','implicit-bias')}
-       prior are the same object.`
+       equals the analytic ${gl('min-L1','prior')} prior, the dynamic result and the static
+       ${gl('implicit-bias','implicit-bias')} prior are the same object.`
     : `Holding out every &ldquo;1&rdquo; row, SGD ${gl('memorizes','memorize')}: its endpoint does <b>not</b> reach
        the prior ${gl('portrait','portrait')}, because nothing forced it there. The identity holds only when it
        generalizes.`;
@@ -1080,6 +1080,7 @@ PAGE_EXPLAIN = r"""<!doctype html>
     <a href="#memorize">MEMORIZES</a>
     <a href="#identity">Endpoint vs. prior</a>
     <a href="#implicit-bias">Implicit bias</a>
+    <a href="#prior">The min-L1 prior</a>
     <a href="#why">Why it matters</a>
   </div>
 
@@ -1249,11 +1250,39 @@ PAGE_EXPLAIN = r"""<!doctype html>
         bias-preferred one, and it is reached late.</p></div>
     <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
       <p>Among all the integer weights that fit the shown rows, more than one exists, the <b>survivor set</b>. The
-        implicit bias selects the minimum-complexity member (here <b>min-L1</b>), which is exactly the weight whose
+        implicit bias selects the minimum-complexity member (here <b><a href="#prior">min-L1</a></b>), which is exactly the weight whose
         portrait is the NAND prior <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>. Gradient descent from a zero
         start reaches that <i>same</i> weight, which is why <span class="mono">endpoint == prior</span> when it
         groks. Take the forcing away (the MEMORIZES control) and there is no generalizing target for the bias to
         prefer, so it never gets there.</p></div>
+  </section>
+
+  <section class="topic" id="prior">
+    <h2>The min-L1 prior: the &ldquo;simplest&rdquo; weight, and how it is found</h2>
+    <p class="subtle">&ldquo;Simplest solution&rdquo; needs a precise meaning. Here it is <b>min-L1</b>, and unlike
+      almost everywhere else in machine learning, it is computed <i>exactly</i>, not estimated.</p>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>To say the machine settles on the &ldquo;simplest&rdquo; rule, we have to say what simplest <i>means</i>.
+        Here it means the weights with the smallest total size: add up the size of all nine numbers, ignoring plus
+        or minus signs. That total is the <b>L1 size</b>. Among every weight setting that fits the practice
+        examples, the one with the smallest L1 size is the <b>min-L1</b> weight, the tidiest, least-stretched
+        answer. That is the &ldquo;prior&rdquo; we hold the trained machine up against.</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p>The <b>L1 norm</b> of a weight is the sum of the absolute values of its entries, <span class="mono">
+        &Sigma;|M<sub>ij</sub>|</span>. The <b>prior</b> is the min-L1 member of the set of solutions that fit the
+        training rows. L1 is used as a concrete, exactly-computable stand-in for the min-norm / max-margin solution
+        that gradient descent's implicit bias is known to prefer. The point of this toy is that we don't have to
+        <i>argue</i> which solution the bias picks, we can <i>compute</i> it and check.</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer (how it is derived)</div>
+      <p>The weights are bounded small integers: each of the nine entries of <span class="mono">M</span> is in
+        <span class="mono">{-1, 0, +1}</span>, so the entire weight space is just <span class="mono">3<sup>9</sup> =
+        19,683</span> matrices, small enough to enumerate exhaustively. The derivation is three lines
+        (<span class="mono">probes/nand_core.py</span>): (1) <b>enumerate</b> all 19,683 matrices; (2) keep the
+        <b>survivor set</b>, those whose next-token map satisfies every shown training row; (3) return the survivor
+        with the smallest <span class="mono">&Sigma;|M<sub>ij</sub>|</span> (ties broken by the lexicographically
+        smallest entries). That single matrix is the prior; its phase portrait, e.g.
+        <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>, is what the demo prints and what the SGD endpoint is shown
+        to match.</p></div>
   </section>
 
   <section class="topic" id="why">
