@@ -30,8 +30,8 @@ CHECKPOINTS = list(range(0, VIZ_STEPS + 1))
 REGIMES = [
     {"key": "groks", "label": "GROKS", "holdout": ["s"],
      "blurb": "hold out s (NAND=0, the minority row): not forced, generalizes LATE"},
-    {"key": "nogrok", "label": "NO-GROK", "holdout": ["r"],
-     "blurb": "hold out r (a redundant NAND=1 row): forced by p,q, generalizes immediately"},
+    {"key": "nogrok", "label": "NO-GROK", "holdout": ["q"],
+     "blurb": "hold out q (a NAND=1 row the others force): generalizes immediately"},
     {"key": "memorize", "label": "MEMORIZES", "holdout": ["p", "q", "r"],
      "blurb": "hold out all majority rows: underdetermined, never generalizes"},
 ]
@@ -776,8 +776,8 @@ function heroFacts(reg){
       the zero-crossing <b>is</b> the grok.`;
   }
   if(reg.verdict==="NO-GROK"){
-    return `held out <b>{${reg.holdout.join(',')}}</b>, a row the others already <b>force</b>. So held-out
-      generalizes at <b>step ${reg.grok_at}</b>, as soon as (here before) train even fits at
+    return `held out <b>{${reg.holdout.join(',')}}</b>, a row the others already ${gl('force','forced')}. So
+      held-out generalizes at <b>step ${reg.grok_at}</b>, as soon as (here before) train even fits at
       <b>step ${reg.fit_at}</b>. No plateau, no ${gl('implicit-bias','implicit-bias')} phase,
       <b>no ${gl('grok','groks')} gap</b>.`;
   }
@@ -947,11 +947,10 @@ function renderGame(){
      <div class="gtable">${rows}</div>
      ${score}
      <div class="mut" style="font-size:12px;margin-top:10px;line-height:1.5">&ldquo;Never practiced&rdquo; does
-       <b>not</b> mean it must fail. A held-out row the other rows already <b>force</b> is answered correctly
-       anyway (that is the whole no-grok case, here row <span class="mono">r</span> is pinned down by
-       <span class="mono">p</span> and <span class="mono">q</span>), and a grokked machine reaches its held-out row
-       through ${gl('implicit bias','implicit-bias')}. A machine only fails where nothing forces the answer and it
-       has not grokked, the memorized case.</div>
+       <b>not</b> mean it must fail. A held-out row the other rows already ${gl('force','forced')} is answered
+       correctly anyway (that is the whole no-grok case, here row <span class="mono">q</span> is pinned down by the
+       rows around it), and a grokked machine reaches its held-out row through ${gl('implicit bias','implicit-bias')}.
+       A machine only fails where nothing forces the answer and it has not grokked, the memorized case.</div>
      <div class="mut" style="font-size:12px;margin-top:8px">Reset: <a href="#" id="greset">quiz again</a></div>`;
   document.querySelectorAll('#gseg .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.gk===reg.key));
 }
@@ -1081,6 +1080,7 @@ PAGE_EXPLAIN = r"""<!doctype html>
   <div class="toc">
     <a href="#setup">The machine &amp; the task</a>
     <a href="#portrait">Reading the portrait</a>
+    <a href="#forced">Forcing</a>
     <a href="#groks">GROKS</a>
     <a href="#nogrok">NO-GROK</a>
     <a href="#memorize">MEMORIZES</a>
@@ -1141,6 +1141,37 @@ PAGE_EXPLAIN = r"""<!doctype html>
         basins, wrong outputs, no NAND, exactly what memorization looks like as a picture.</p></div>
   </section>
 
+  <section class="topic" id="forced">
+    <h2>Forcing: when the practiced rows pin down a held-out one</h2>
+    <p class="subtle">The single idea that decides grok vs. no-grok vs. memorize. A held-out row the other rows
+      <b>force</b> is answered correctly with no delay, because its answer was never in question.</p>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>Some examples make others unnecessary. NAND's rule is &ldquo;the output is 1 unless <i>both</i> inputs are
+        1.&rdquo; If the machine has already practiced inputs like (0,0)&rarr;1 and (1,0)&rarr;1, it has effectively
+        learned &ldquo;a 0 anywhere means output 1,&rdquo; which <i>already</i> covers (0,1) without ever showing it
+        that row. We say the practiced rows <b>force</b> the held-out one: given what it learned, no other answer
+        was possible. A forced row is right immediately, not because the machine is clever, but because the answer
+        was already settled.</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p>Consider the set of all hypotheses (weights) consistent with the practiced rows, the <b>survivor set</b>.
+        A held-out input is <b>forced</b> if <i>every</i> survivor maps it to the same output, and
+        <b>under-determined</b> if survivors disagree. Forced means the training rows <b>entail</b> the label (it is
+        in their logical closure), so the model generalizes to it for free, independent of any implicit bias. This
+        is the exact, decidable condition behind the three controls: forced &rarr; no-grok (immediate);
+        under-determined but bias-preferred &rarr; grok (late); under-determined and not bias-preferred &rarr;
+        memorize (never).</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
+      <p>The demo checks this by <i>enumeration</i>. Hold out row <span class="mono">q</span> and take the survivor
+        set over the other rows (every integer weight that fits them). Ask where each survivor sends
+        <span class="mono">q</span>: they <b>all</b> send <span class="mono">q&rarr;O</span>. Unanimous, so
+        <span class="mono">q</span> is forced, and any weight training could have produced already answers it, which
+        is why it generalizes before the fit. Contrast the GROKS row <span class="mono">s</span>: survivors on the
+        rest send it to more than one place (<span class="mono">Z</span> or <span class="mono">s</span>), so it is
+        <i>not</i> forced, and only the <a href="#implicit-bias">implicit bias</a> resolves it, late. And a majority row is not automatically
+        forced, <span class="mono">r</span> is under-determined too (survivors split it three ways), which is why the
+        demo's no-grok control holds out <span class="mono">q</span>, a genuinely forced row.</p></div>
+  </section>
+
   <section class="topic" id="groks">
     <h2>GROKS <span class="tag GROKS">delayed learning</span></h2>
     <p class="subtle">You held out one example the rest do not pin down, yet the machine eventually gets it, long
@@ -1182,11 +1213,12 @@ PAGE_EXPLAIN = r"""<!doctype html>
         precedes, convergence on the training set; there is no separate implicit-bias phase to wait through, hence
         no grok gap.</p></div>
     <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
-      <p>Hold out a redundant &ldquo;1&rdquo; row such as <span class="mono">r</span>. Rows
-        <span class="mono">p</span> and <span class="mono">q</span> already force it, so the survivor set agrees on
-        <span class="mono">r&rarr;O</span> from the start. The demo shows held-out accuracy reaching 100% at a step
-        <i>before</i> training even finishes fitting, and the endpoint still equals the prior,
-        <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>.</p></div>
+      <p>Hold out the &ldquo;1&rdquo; row <span class="mono">q</span> (input 0,1). It is genuinely
+        <a href="#forced">forced</a>: <i>every</i> weight consistent with the other rows sends
+        <span class="mono">q&rarr;O</span> (the survivor set is unanimous). So the demo shows held-out accuracy
+        reaching 100% at a step <i>before</i> training even finishes fitting, and the endpoint still equals the
+        prior, <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>. (Note: not every majority row is forced this way,
+        <span class="mono">r</span> for instance is not, which is why the demo uses <span class="mono">q</span>.)</p></div>
   </section>
 
   <section class="topic" id="memorize">

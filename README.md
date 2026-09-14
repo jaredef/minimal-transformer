@@ -45,7 +45,7 @@ checkpoints. The control is the same as NO-3's: **whether the train subset force
 | rung | holdout | verdict |
 |------|---------|---------|
 | **NO-4a** `GROKS` | `s` (the minority NAND=0 row) | train fits at **step 50**, held-out `s→Z` reaches 100% only at **step 100** — a genuine gap. `s` is not box-forced, yet SGD's implicit max-margin bias selects `s→Z` anyway. **The dynamic image of NO-3's min-L1 prior.** |
-| **NO-4b** `NO-GROK` | `r` (a redundant majority row) | `r` is forced by `p,q`, so it generalizes at step 25 — before the fit. No implicit-bias phase, no grok gap. |
+| **NO-4b** `NO-GROK` | `q` (a genuinely forced row) | every weight consistent with the other rows sends `q→O` (the survivor set is unanimous), so it generalizes at step 25 — before the fit. No implicit-bias phase, no grok gap. |
 | **NO-4c** `MEMORIZES` | `p,q,r` (all majority rows) | the remainder (only the fixed points) does not force them — underdetermined. Train fits; held-out **never** reaches 100%. |
 
 The three regimes line up exactly with forcing: **forced → immediate (no grok); not forced but reachable by

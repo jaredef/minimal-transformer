@@ -28,7 +28,7 @@ check "$orbit" "$ROOT/fixtures/grok-is-prior-conditional.json" 'GROK-IS-PRIOR-CO
 echo
 echo "== NO-4  the training dynamic: the same grok, now delayed generalization under real SGD =="
 check "$grok" "$ROOT/fixtures/nand-groks-in-time.json" 'GROKS holdout=s train_100_at=step50 heldout_100_at=step100 gap=yes note=train-fits-early-held-out-reaches-100-percent-later-s-is-not-box-forced-yet-sgd-implicit-max-margin-bias-selects-s-to-z-the-dynamic-image-of-no-3-min-l1-prior-delayed-generalization-is-grokking'
-check "$grok" "$ROOT/fixtures/nand-generalises-immediately.json" 'NO-GROK holdout=r train_100_at=step50 heldout_100_at=step25 gap=no note=the-held-out-row-is-forced-by-the-remaining-rows-so-it-generalizes-as-soon-as-or-before-the-data-is-fit-no-implicit-bias-phase-needed-no-grok-gap'
+check "$grok" "$ROOT/fixtures/nand-generalises-immediately.json" 'NO-GROK holdout=q train_100_at=step50 heldout_100_at=step25 gap=no note=the-held-out-row-is-forced-by-the-remaining-rows-so-it-generalizes-as-soon-as-or-before-the-data-is-fit-no-implicit-bias-phase-needed-no-grok-gap'
 check "$grok" "$ROOT/fixtures/nand-memorizes.json" 'MEMORIZES holdout=pqr train_100_at=step50 heldout_100_at=never reason=not-forced-by-train note=the-remaining-train-rows-do-not-force-the-held-out-underdetermined-nothing-pulls-them-to-the-right-output-gd-memorizes-and-never-generalizes'
 
 echo
