@@ -231,7 +231,7 @@ PAGE = r"""<!doctype html>
   .lesson ol, .lesson ul { padding-left:20px; } .lesson li { margin:6px 0; }
   .lesson i { color:var(--mut); font-style:italic; }
   .callout { background:var(--bg); border:1px solid var(--line); border-left:3px solid var(--held);
-             border-radius:8px; padding:12px 14px; margin-top:14px; font-size:14px; color:var(--mut); }
+             border-radius:0 8px 8px 0; padding:12px 14px; margin-top:14px; font-size:14px; color:var(--mut); }
   .callout b:first-child { color:var(--held); }
   table.map { width:100%; border-collapse:collapse; margin:12px 0; font-size:13.5px; }
   table.map th, table.map td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line);
@@ -430,6 +430,31 @@ PAGE = r"""<!doctype html>
     <p>Here is the strange part. A model can fit its <i>training</i> data quickly, then sit on a long flat plateau
        where nothing visible improves &mdash; and only <i>much later</i> suddenly start getting <b>held-out</b>
        (never-trained) cases right. That delayed click is <b>grokking</b>.</p>
+    <figure class="diagram">
+      <svg viewBox="0 0 720 200" role="img" aria-label="the grokking gap: train fits early, held-out generalizes late">
+        <rect x="210" y="28" width="141" height="128" fill="var(--ok)" opacity="0.08"/>
+        <line x1="50" y1="30" x2="690" y2="30" stroke="var(--grid)"/>
+        <line x1="50" y1="93" x2="690" y2="93" stroke="var(--grid)"/>
+        <line x1="50" y1="156" x2="690" y2="156" stroke="var(--grid)"/>
+        <text x="44" y="34" text-anchor="end" fill="var(--mut)" font-size="10">100%</text>
+        <text x="44" y="160" text-anchor="end" fill="var(--mut)" font-size="10">0%</text>
+        <line x1="210" y1="28" x2="210" y2="156" stroke="var(--train)" stroke-dasharray="3 3" opacity="0.6"/>
+        <text x="214" y="40" fill="var(--train)" font-size="10">train fits</text>
+        <line x1="351" y1="28" x2="351" y2="156" stroke="var(--ok)" stroke-dasharray="3 3" opacity="0.7"/>
+        <text x="355" y="52" fill="var(--ok)" font-size="10">held-out groks</text>
+        <path d="M50 156 Q150 30 210 30 L690 30" fill="none" stroke="var(--train)" stroke-width="2.5"/>
+        <path d="M50 156 L345 156 C349 156 349 30 351 30 L690 30" fill="none" stroke="var(--held)" stroke-width="2.5"/>
+        <text x="50" y="178" fill="var(--mut)" font-size="10">step 0</text>
+        <text x="690" y="178" text-anchor="end" fill="var(--mut)" font-size="10">training steps &rarr;</text>
+        <g font-size="11">
+          <rect x="250" y="168" width="10" height="10" rx="2" fill="var(--train)"/><text x="266" y="177" fill="var(--mut)">train accuracy</text>
+          <rect x="400" y="168" width="10" height="10" rx="2" fill="var(--held)"/><text x="416" y="177" fill="var(--mut)">held-out accuracy</text>
+        </g>
+      </svg>
+      <figcaption>Train accuracy (blue) shoots to 100% early and flatlines. Held-out accuracy (pink) sits at 0
+        through the shaded plateau, then jumps to 100% much later. That horizontal gap between fitting and
+        generalizing is grokking. (Schematic; scroll up for the live curves.)</figcaption>
+    </figure>
     <div class="callout"><b>In the demo:</b> we hold out one row, <span class="mono">s</span>. Training fits the
        other rows by <b>step 50</b>, but <span class="mono">s</span> only becomes correct around <b>step 94</b>.
        Drag the slider through that gap &mdash; train accuracy is pinned at 100% the whole time, yet something is
@@ -444,6 +469,26 @@ PAGE = r"""<!doctype html>
        exact step grokking happens.</b> Meanwhile the weight's size keeps growing. The model is still learning on
        the plateau &mdash; sharpening its margin, not resting. The late jump is a smooth threshold crossing, not a
        lucky accident.</p>
+    <figure class="diagram">
+      <svg viewBox="0 0 720 200" role="img" aria-label="the held-out margin climbing across the plateau and crossing zero at the grok">
+        <rect x="210" y="24" width="141" height="140" fill="var(--ok)" opacity="0.08"/>
+        <line x1="50" y1="94" x2="690" y2="94" stroke="var(--mut)" stroke-dasharray="4 3"/>
+        <text x="44" y="98" text-anchor="end" fill="var(--mut)" font-size="10">0</text>
+        <text x="56" y="40" fill="var(--mut)" font-size="10">margin &gt; 0 &rarr; correct</text>
+        <text x="56" y="158" fill="var(--mut)" font-size="10">margin &lt; 0 &rarr; wrong</text>
+        <path d="M50 150 C170 132 210 118 351 94 C470 74 600 56 690 46" fill="none" stroke="var(--mut)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="614" y="44" fill="var(--mut)" font-size="10">&#8214;M&#8214; rising</text>
+        <path d="M50 150 C150 146 205 132 351 94 C470 66 600 50 690 40" fill="none" stroke="var(--held)" stroke-width="2.5"/>
+        <circle cx="351" cy="94" r="5" fill="var(--ok)"/>
+        <line x1="351" y1="24" x2="351" y2="164" stroke="var(--ok)" stroke-dasharray="3 3" opacity="0.7"/>
+        <text x="357" y="112" fill="var(--ok)" font-size="10.5">crosses 0 = grok</text>
+        <text x="214" y="180" fill="var(--mut)" font-size="10">plateau (train already 100%)</text>
+      </svg>
+      <figcaption>The held-out margin (pink) starts negative &mdash; confidently wrong &mdash; climbs steadily
+        across the plateau, and crosses zero at the exact step it groks, while the weight size
+        <span class="mono">&#8214;M&#8214;</span> (dashed) keeps rising. The flat region isn't idle; it's the model
+        sharpening until the answer tips over.</figcaption>
+    </figure>
     <div class="callout"><b>In the demo:</b> the right-hand chart is the margin; scrub to the shaded band and
        watch the phase portrait <i>flip</i>: <span class="mono">s</span> starts as its own dead-end
        (<span class="mono">s&larr;s</span>), and at the crossing its basin is swallowed into
@@ -456,6 +501,29 @@ PAGE = r"""<!doctype html>
        bias</b>. Among all the weights that fit the training rows, gradient descent quietly drifts toward the
        <i>simplest</i> one (smallest, largest-margin). And that simplest solution happens to also get the held-out
        row right. Generalization is the bias <b>choosing which attractor</b> an undetermined case falls into.</p>
+    <figure class="diagram">
+      <svg viewBox="0 0 720 200" role="img" aria-label="the analytic prior and the trained endpoint are the same weight">
+        <defs><marker id="a8" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto">
+          <path d="M0 0 L7 3 L0 6 z" fill="var(--mut)"/></marker></defs>
+        <rect x="40" y="28" width="250" height="52" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+        <text x="165" y="50" text-anchor="middle" fill="var(--ink)" font-size="13" font-weight="600">min-L1 prior</text>
+        <text x="165" y="68" text-anchor="middle" fill="var(--mut)" font-size="11">the simplest weight, computed directly</text>
+        <rect x="430" y="28" width="250" height="52" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+        <text x="555" y="50" text-anchor="middle" fill="var(--ink)" font-size="13" font-weight="600">SGD endpoint</text>
+        <text x="555" y="68" text-anchor="middle" fill="var(--mut)" font-size="11">where grokking lands, by descent</text>
+        <path d="M165 82 C165 116 300 118 348 128" fill="none" stroke="var(--mut)" marker-end="url(#a8)"/>
+        <path d="M555 82 C555 116 420 118 372 128" fill="none" stroke="var(--mut)" marker-end="url(#a8)"/>
+        <text x="360" y="118" text-anchor="middle" fill="var(--ok)" font-size="22" font-weight="700">=</text>
+        <rect x="220" y="132" width="280" height="50" rx="8" fill="var(--ok)" opacity="0.10"/>
+        <rect x="220" y="132" width="280" height="50" rx="8" fill="none" stroke="var(--ok)" opacity="0.6"/>
+        <text x="360" y="156" text-anchor="middle" fill="var(--ink)" font-size="14" font-family="ui-monospace,monospace">O&larr;Opqr | Z&larr;Zs</text>
+        <text x="360" y="173" text-anchor="middle" fill="var(--ok)" font-size="11">the same phase portrait</text>
+      </svg>
+      <figcaption>Two roads, one destination: the simplest weight worked out analytically (left) and the weight
+        gradient descent actually reaches (right) produce the <i>identical</i> phase portrait. The static
+        implicit-bias prior and the dynamic grok are literally the same object &mdash;
+        <span class="mono">endpoint == prior</span> in the demo.</figcaption>
+    </figure>
     <div class="callout"><b>We can check this exactly:</b> compute the simplest weight analytically (the
        &ldquo;min-L1 prior&rdquo;). It predicts <span class="mono">s&rarr;Z</span>. The trained network converges to
        the <i>very same phase portrait</i>. <b>The static prior and the dynamic grok are the same object</b> &mdash;
