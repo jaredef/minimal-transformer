@@ -9,6 +9,7 @@ and the server all report the same numbers. Deterministic, torch-free (stdlib on
 import itertools
 import json
 import math
+import random
 
 
 # ---- the lowered-transformer step -------------------------------------------------
@@ -60,10 +61,16 @@ def fro_norm(M, d):
 
 # ---- the two ways to get M --------------------------------------------------------
 
-def train_sgd(train_cons, emb, vocab, d, lr, steps, checkpoints, held=None):
-    """SGD from zero init, the enumerable-transformer DYN-1 gradient (p_u - onehot)*emb[u]*emb[s], tied
-    embeddings. Returns (final_M, trajectory) where trajectory[i] records the state at each checkpoint."""
-    M = [[0.0] * d for _ in range(d)]
+def train_sgd(train_cons, emb, vocab, d, lr, steps, checkpoints, held=None, seed=None, init_scale=0.15):
+    """SGD with the enumerable-transformer DYN-1 gradient (p_u - onehot)*emb[u]*emb[s], tied embeddings.
+    seed=None gives ZERO init (the deterministic corpus discipline the CLI probes assert); an integer seed
+    gives a small deterministic RANDOM init, so 'train again' starts from a fresh point and still groks.
+    Returns (final_M, trajectory) recording the state at each checkpoint."""
+    if seed is None:
+        M = [[0.0] * d for _ in range(d)]
+    else:
+        rng = random.Random(seed)
+        M = [[rng.uniform(-init_scale, init_scale) for _ in range(d)] for _ in range(d)]
     cps = sorted(set(checkpoints))
     traj = {}
     for step in range(steps + 1):

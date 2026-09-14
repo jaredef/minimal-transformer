@@ -14,7 +14,7 @@ import json
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "probes"))
 import nand_core as c  # noqa: E402
@@ -22,8 +22,9 @@ import nand_core as c  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIX = os.path.join(HERE, "..", "fixtures", "nand-groks-in-time.json")
 
-# dense early checkpoints so the plateau and zero-crossing are smooth, sparse tail
-CHECKPOINTS = sorted(set(list(range(0, 205, 5)) + [250, 300, 400, 600, 1000, 2000, 4000, 6000]))
+# record EVERY step so the scrubber moves one training step at a time
+VIZ_STEPS = 400
+CHECKPOINTS = list(range(0, VIZ_STEPS + 1))
 
 REGIMES = [
     {"key": "groks", "label": "GROKS", "holdout": ["s"],
@@ -43,7 +44,7 @@ def first_100(points, key):
     return None
 
 
-def compute(holdout):
+def compute(holdout, seed=None):
     data = c.load(FIX)
     d = data["_d"]
     vocab, emb = data["vocab"], data["embeddings"]
@@ -52,7 +53,8 @@ def compute(holdout):
     train_cons = [(a, b) for a, b in form if a not in hs]
     held_cons = [(a, b) for a, b in form if a in hs]
     lr = data.get("lr", 0.01)
-    M, traj = c.train_sgd(train_cons, emb, vocab, d, lr, max(CHECKPOINTS), CHECKPOINTS, held=held_cons)
+    M, traj = c.train_sgd(train_cons, emb, vocab, d, lr, max(CHECKPOINTS), CHECKPOINTS,
+                          held=held_cons, seed=seed)
     points = []
     for step in sorted(traj):
         rec = traj[step]
@@ -89,8 +91,9 @@ def compute(holdout):
     }
 
 
-def payload():
-    return {"regimes": [dict(r, **compute(r["holdout"])) for r in REGIMES]}
+def payload(seed=None):
+    return {"seed": seed, "init": "zero" if seed is None else "random",
+            "regimes": [dict(r, **compute(r["holdout"], seed=seed)) for r in REGIMES]}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -109,7 +112,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/" or path == "/index.html":
             self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
         elif path == "/api/data":
-            self._send(200, json.dumps(payload()).encode("utf-8"), "application/json")
+            qs = parse_qs(urlparse(self.path).query)
+            seed = None
+            if "seed" in qs:
+                try:
+                    seed = int(qs["seed"][0])
+                except ValueError:
+                    seed = None
+            self._send(200, json.dumps(payload(seed)).encode("utf-8"), "application/json")
         else:
             self._send(404, b"not found", "text/plain")
 
@@ -150,10 +160,14 @@ PAGE = r"""<!doctype html>
   .btn { background:var(--held); color:#111; border:none; border-radius:8px; padding:6px 12px;
          font:600 13px system-ui; cursor:pointer; }
   .phase { font:600 12px ui-monospace, monospace; color:var(--ink); white-space:nowrap; }
-  .state { margin-top:12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  .initline { font-size:11.5px; margin-top:6px; }
+  .btn:disabled { opacity:.6; cursor:default; }
+  .state { margin-top:12px; display:grid; grid-template-columns:repeat(5,1fr);
            gap:6px 18px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; }
-  .staterow { display:flex; justify-content:space-between; gap:10px; align-items:baseline;
-              border-bottom:1px dashed var(--line); padding-bottom:3px; }
+  @media (max-width:640px){ .state{ grid-template-columns:repeat(2,1fr); } }
+  .staterow { display:flex; justify-content:space-between; gap:10px; align-items:baseline; min-height:22px;
+              border-bottom:1px dashed var(--line); padding-bottom:3px; white-space:nowrap; overflow:hidden; }
+  .staterow.wide { grid-column:1/-1; }
   .staterow span:first-child { color:var(--mut); font-size:12px; }
   footer { color:var(--mut); font-size:12px; max-width:1100px; margin:0 auto; padding:0 20px 40px; }
   a { color:var(--train); }
@@ -185,10 +199,9 @@ function ypos(v,lo,hi){ const f=(v-lo)/(hi-lo); return H-PAD.b-f*(H-PAD.t-PAD.b)
 function path(pts){ return pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' '); }
 function esc(s){ return s.replace(/</g,'&lt;'); }
 
-function cursor(step,maxStep){
-  if(step==null) return '';
-  const x=xpos(step,maxStep);
-  return `<line x1="${x}" y1="${PAD.t}" x2="${x}" y2="${H-PAD.b}" stroke="var(--ink)" stroke-width="1.5" opacity=".8"/>`;
+function cursor(step,maxStep,id){
+  const x=(step==null)?PAD.l:xpos(step,maxStep);
+  return `<line id="${id}" x1="${x}" y1="${PAD.t}" x2="${x}" y2="${H-PAD.b}" stroke="var(--ink)" stroke-width="1.5" opacity=".85"/>`;
 }
 function accuracyChart(reg, big, curStep){
   const pts=reg.points, maxStep=pts[pts.length-1].step;
@@ -209,7 +222,7 @@ function accuracyChart(reg, big, curStep){
   const yt=[0,.5,1].map(v=>`<line x1="${PAD.l}" y1="${ypos(v,0,1)}" x2="${W-PAD.r}" y2="${ypos(v,0,1)}" stroke="var(--grid)"/>
      <text x="${PAD.l-6}" y="${ypos(v,0,1)+3}" fill="var(--mut)" font-size="10" text-anchor="end">${v*100|0}%</text>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="accuracy over steps">
-    ${shade}${yt}${marks}${cursor(curStep,maxStep)}
+    ${shade}${yt}${marks}${big?cursor(curStep,maxStep,'accCursor'):''}
     <path d="${path(tr)}" fill="none" stroke="var(--train)" stroke-width="2"/>
     <path d="${path(hd)}" fill="none" stroke="var(--held)" stroke-width="2"/>
     <text x="${PAD.l}" y="${H-6}" fill="var(--mut)" font-size="10">step 0</text>
@@ -231,7 +244,7 @@ function marginChart(reg, curStep){
     const x0=xpos(reg.fit_at,maxStep), x1=xpos(reg.grok_at,maxStep);
     shade=`<rect x="${x0}" y="${PAD.t}" width="${x1-x0}" height="${H-PAD.t-PAD.b}" fill="var(--ok)" opacity=".07"/>`; }
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="held-out margin over steps">
-    ${shade}${cursor(curStep,maxStep)}
+    ${shade}${cursor(curStep,maxStep,'marCursor')}
     <line x1="${PAD.l}" y1="${zeroY}" x2="${W-PAD.r}" y2="${zeroY}" stroke="var(--mut)" stroke-dasharray="4 3"/>
     <text x="${PAD.l-6}" y="${zeroY+3}" fill="var(--mut)" font-size="10" text-anchor="end">0</text>
     <path d="${path(mg)}" fill="none" stroke="var(--held)" stroke-width="2"/>
@@ -252,12 +265,21 @@ function heroFacts(reg){
   </div>`;
 }
 
-let HERO=null, IDX=0, PLAY=null;
+let HERO=null, IDX=0, PLAY=null, MAXSTEP=1;
 
+function buildHeroCharts(){
+  const reg=HERO; MAXSTEP=reg.points[reg.points.length-1].step;
+  // built ONCE; scrubbing only moves the cursor lines, never re-parses the SVG
+  document.getElementById('heroCharts').innerHTML =
+    `<div>${accuracyChart(reg,true,reg.points[0].step)}</div><div>${marginChart(reg,reg.points[0].step)}</div>`;
+}
+function moveCursor(id,step){
+  const el=document.getElementById(id); if(!el) return;
+  const x=xpos(step,MAXSTEP).toFixed(1); el.setAttribute('x1',x); el.setAttribute('x2',x);
+}
 function drawHero(){
   const reg=HERO, p=reg.points[IDX], correct=p.held_acc===1;
-  document.getElementById('heroCharts').innerHTML =
-    `<div>${accuracyChart(reg,true,p.step)}</div><div>${marginChart(reg,p.step)}</div>`;
+  moveCursor('accCursor',p.step); moveCursor('marCursor',p.step);
   const predRows = p.held_pred.map(([s,pred,t])=>{
     const good = pred===t;
     return `<span class="mono">${s} &rarr; <b class="${good?'match':'nomatch'}">${esc(pred)}</b></span>
@@ -269,8 +291,8 @@ function drawHero(){
      <div class="staterow"><span>held-out acc</span><b class="mono ${correct?'match':'nomatch'}">${(p.held_acc*100).toFixed(0)}%</b></div>
      <div class="staterow"><span>held margin</span><b class="mono ${p.margin>=0?'match':'nomatch'}">${p.margin>=0?'+':''}${p.margin.toFixed(2)}</b></div>
      <div class="staterow"><span>&#8214;M&#8214;</span><b class="mono">${p.wnorm.toFixed(2)}</b></div>
-     <div class="staterow"><span>held map</span><span>${predRows}</span></div>
-     <div class="staterow"><span>portrait</span><b class="mono ${p.portrait===reg.prior_portrait?'match':''}">${esc(p.portrait)}</b></div>`;
+     <div class="staterow wide"><span>held map</span><span>${predRows}</span></div>
+     <div class="staterow wide"><span>portrait</span><b class="mono ${p.portrait===reg.prior_portrait?'match':''}">${esc(p.portrait)}</b></div>`;
   let phase='before the fit';
   if(reg.fit_at!=null && p.step>=reg.fit_at) phase = (reg.grok_at!=null && p.step>=reg.grok_at)
     ? 'GROKKED &mdash; held-out generalized' : 'ON THE PLATEAU &mdash; train fit, margin still climbing';
@@ -278,12 +300,21 @@ function drawHero(){
   document.getElementById('scrub').value = IDX;
 }
 function setIdx(i){ IDX=Math.max(0,Math.min(HERO.points.length-1,i)); drawHero(); }
-function togglePlay(){
-  const btn=document.getElementById('play');
-  if(PLAY){ clearInterval(PLAY); PLAY=null; btn.textContent='▶ play'; return; }
-  btn.textContent='⏸ pause';
-  if(IDX>=HERO.points.length-1) IDX=0;
-  PLAY=setInterval(()=>{ if(IDX>=HERO.points.length-1){ clearInterval(PLAY); PLAY=null; btn.textContent='▶ play'; return; } setIdx(IDX+1); }, 220);
+function animate(){
+  // sweep the whole trajectory in ~2.5s regardless of step count, so you watch it train
+  if(PLAY) clearInterval(PLAY);
+  IDX=0; drawHero();
+  const N=HERO.points.length, inc=Math.max(1,Math.floor(N/150));
+  PLAY=setInterval(()=>{ if(IDX>=N-1){ clearInterval(PLAY); PLAY=null; return; } setIdx(IDX+inc); }, 16);
+}
+function redo(){
+  const btn=document.getElementById('redo');
+  btn.disabled=true; btn.textContent='↻ training…';
+  const seed=Math.floor(Math.random()*1e9);
+  fetch('/api/data?seed='+seed).then(r=>r.json()).then(data=>{
+    render(data); btn.disabled=false; btn.textContent='↻ train again';
+    animate();
+  }).catch(e=>{ btn.disabled=false; btn.textContent='↻ train again'; });
 }
 
 function render(data){
@@ -296,14 +327,16 @@ function render(data){
        <span><span class="sw" style="background:var(--ok);opacity:.5"></span>plateau (fit&rarr;grok)</span></div>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px" class="heropair" id="heroCharts"></div>
      <div class="scrubwrap">
-       <button id="play" class="btn">&#9654; play</button>
+       <button id="redo" class="btn" title="reinitialize and train the NAND transformer again from a fresh random start">&#8635; train again</button>
        <input type="range" id="scrub" min="0" max="${reg.points.length-1}" value="0" step="1">
        <span id="phase" class="phase"></span>
      </div>
+     <div class="initline mut">init: <b>${data.init}</b>${data.seed!=null?' &middot; seed '+data.seed:''} &middot; drag to step one training step at a time</div>
      <div class="state" id="state"></div>
      ${heroFacts(reg)}`;
-  document.getElementById('scrub').addEventListener('input', e=>{ if(PLAY){clearInterval(PLAY);PLAY=null;document.getElementById('play').textContent='▶ play';} setIdx(+e.target.value); });
-  document.getElementById('play').addEventListener('click', togglePlay);
+  document.getElementById('scrub').addEventListener('input', e=>{ if(PLAY){clearInterval(PLAY);PLAY=null;} setIdx(+e.target.value); });
+  document.getElementById('redo').addEventListener('click', redo);
+  buildHeroCharts();
   drawHero();
 
   const P=reg;

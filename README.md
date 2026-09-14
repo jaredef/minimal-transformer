@@ -71,7 +71,17 @@ python3 server/app.py            # then open http://localhost:8000  (optional: a
 A dependency-free Python server (`http.server`) computes the trajectories with `probes/nand_core.py` — the
 same numbers `run.sh` asserts — and serves one page that shows: the accuracy gap with the plateau shaded,
 the **held-out margin crossing zero exactly at the grok step**, the endpoint-equals-prior identity, and the
-three controls (GROKS / NO-GROK / MEMORIZES) side by side. Reload to recompute.
+three controls (GROKS / NO-GROK / MEMORIZES) side by side.
+
+- **Step-scrubber** — drag the slider to move **one training step at a time** (every step 0..400). A live
+  panel shows train/held accuracy, the held-out margin, `‖M‖`, the held-row map (`s → ?`) and the full
+  phase portrait at that step. Watch the grok as a *bifurcation*: `s` starts as its own spurious fixed
+  point (`s<-s`), and at the grok step its basin is absorbed into `Z` (`Z<-Zs`) exactly as the margin
+  crosses zero.
+- **↻ train again** — reinitializes from a fresh **random** start (`/api/data?seed=N`) and retrains, then
+  sweeps the trajectory so you watch it grok again. It groks every time and always lands on the same prior
+  portrait — the grok is the implicit bias, not an artifact of the zero init. (The CLI probes stay
+  zero-init and deterministic; the random restart is a server-only demo.)
 
 ## Run
 
