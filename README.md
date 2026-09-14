@@ -1,0 +1,77 @@
+# minimal-transformer
+
+**The NAND gate, read as the orbit of a lowered transformer — and grokking made visible, first as a
+prior-conditional static and then as a training dynamic under real SGD.**
+
+A lowered transformer is a deterministic dynamical system: the compiled weight is the dynamics, the seed
+is the initial condition, generation is the *orbit*, and the reachable behaviours are the *attractors*.
+This repository takes the smallest interesting gate — NAND, the lone universal boolean connective — and
+shows it is not a circuit but a **phase portrait**, then shows that **grokking** (delayed generalization)
+is exactly the implicit-bias prior choosing which attractor an underdetermined seed falls into.
+
+Everything is deterministic, torch-free (pure Python stdlib), and fail-closed: each probe prints one exact
+verdict string, and `run.sh` asserts it.
+
+## The encoding
+
+NAND is a next-token map over six tokens: the four input rows `p,q,r,s = (00,01,10,11)` and the two output
+bits `O = 1`, `Z = 0`, the outputs as fixed points. A token `x` has embedding `emb[x] ∈ Z^3`; the
+transformer step is
+
+```
+f(x) = argmax_v  emb[v] · (I + M) · emb[x]        (tied embeddings: unemb == emb)
+```
+
+## The two halves
+
+### NO-1..3 — the static orbit (`probes/nand_orbit_probe.py`)
+
+The weight `M` is the **min-L1 integer weight** compiled from the enumerable bench — no gradient descent,
+just the implicit-bias prior.
+
+| rung | fact |
+|------|------|
+| **NO-1** `THE-NAND-ORBIT` | compiled to a weight, NAND's phase portrait is two fixed-point attractors (the output bits). Every input row seeded flows in one step to its output and stays. Generation is the orbit; the reachable behaviours are exactly the attractors. |
+| **NO-2** `THE-BASINS-ARE-THE-TRUTH-TABLE` | the basin of `O` is `{p,q,r}` (the rows with NAND=1), the basin of `Z` is `{s}` (the one row with NAND=0). The 3:1 basin asymmetry **is** the gate. |
+| **NO-3** `GROK-IS-PRIOR-CONDITIONAL` | hold out row `s`; the other three do **not** force it (the survivor set sends it to more than one place), yet the min-L1 weight — the prior — selects the generalising dynamics `s→Z`. Selection is the prior: grok via implicit bias, as a static property of the portrait. |
+
+### NO-4 — the training dynamic (`probes/nand_grok_sgd_probe.py`)
+
+The same 6-token NAND encoding and the same embeddings, but now `M` is **learned by SGD** (zero init, the
+exact enumerable-transformer DYN-1 gradient `(p_u − onehot)·emb[u]·emb[s]`, tied embeddings). We split the
+form into a TRAIN subset and a HELD-OUT remainder and record train vs held-out accuracy at fixed
+checkpoints. The control is the same as NO-3's: **whether the train subset forces the held-out.**
+
+| rung | holdout | verdict |
+|------|---------|---------|
+| **NO-4a** `GROKS` | `s` (the minority NAND=0 row) | train fits at **step 50**, held-out `s→Z` reaches 100% only at **step 100** — a genuine gap. `s` is not box-forced, yet SGD's implicit max-margin bias selects `s→Z` anyway. **The dynamic image of NO-3's min-L1 prior.** |
+| **NO-4b** `NO-GROK` | `r` (a redundant majority row) | `r` is forced by `p,q`, so it generalizes at step 25 — before the fit. No implicit-bias phase, no grok gap. |
+| **NO-4c** `MEMORIZES` | `p,q,r` (all majority rows) | the remainder (only the fixed points) does not force them — underdetermined. Train fits; held-out **never** reaches 100%. |
+
+The three regimes line up exactly with forcing: **forced → immediate (no grok); not forced but reachable by
+the implicit bias → delayed (grok); underdetermined → never (memorize).** That is the whole grokking
+phenomenon, on the smallest gate, visible in time.
+
+## Run
+
+```sh
+sh run.sh
+```
+
+Or a single probe:
+
+```sh
+python3 probes/nand_orbit_probe.py   fixtures/grok-is-prior-conditional.json
+python3 probes/nand_grok_sgd_probe.py fixtures/nand-groks-in-time.json
+```
+
+To watch the grok happen, the SGD probe prints the first checkpoint each accuracy crosses 100%; edit a
+fixture's `lr` / `steps` / `checkpoints` to widen or narrow the gap. `lr` down widens it (train and grok
+both delayed, grok more), `lr` up narrows it.
+
+## Provenance
+
+Extracted and extended from the GCCS corpus (`machines/transformer-nand-orbit`, NO-1..3; grokking-as-a-
+dynamic after `machines/transformer-grokking-dynamics`, GRK-1). NO-4 is new here: the SGD-in-time grok on
+the NAND encoding itself, so the NAND grok is witnessed as both a prior-conditional static and a training
+dynamic controlled the same way.
