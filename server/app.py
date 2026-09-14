@@ -148,6 +148,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/" or path == "/index.html":
             self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
+        elif path == "/explain" or path == "/explain.html":
+            self._send(200, PAGE_EXPLAIN.encode("utf-8"), "text/html; charset=utf-8")
         elif path == "/api/data":
             qs = parse_qs(urlparse(self.path).query)
             seed = None
@@ -225,6 +227,7 @@ PAGE = r"""<!doctype html>
               border-radius:999px; padding:8px 16px; font:600 13px system-ui; text-decoration:none;
               white-space:nowrap; transition:border-color .15s, transform .15s; }
   .learnbtn:hover { border-color:var(--held); transform:translateY(-1px); }
+  .learnbtn.sm { display:inline-block; margin-top:10px; padding:5px 12px; font-size:12px; }
   /* tutorial */
   #learn { max-width:760px; margin:56px auto 0; padding:0 20px; }
   .learnintro { border-top:1px solid var(--line); padding-top:40px; }
@@ -799,6 +802,9 @@ function portraitCard(reg){
        min-L1 prior: <span class="mono ${m?'match':'nomatch'}">${esc(reg.prior_portrait)}</span></div>`;
 }
 
+function learnLink(href,label){
+  return `<a class="learnbtn sm" href="${href}" target="_blank" rel="noopener">${label} &#8599;</a>`;
+}
 function selectRegime(key){
   const reg = DATA.regimes.find(r=>r.key===key) || DATA.regimes[0];
   HERO=reg; IDX=0; CURKEY=reg.key;
@@ -806,8 +812,10 @@ function selectRegime(key){
   document.getElementById('scrub').max = reg.points.length-1;
   buildHeroCharts();
   drawHero();
-  document.getElementById('facts').innerHTML = heroFacts(reg);
-  document.getElementById('portrait').innerHTML = portraitCard(reg);
+  document.getElementById('facts').innerHTML = heroFacts(reg)
+    + learnLink('/explain#'+reg.key, 'What does this mean?');
+  document.getElementById('portrait').innerHTML = portraitCard(reg)
+    + learnLink('/explain#identity', 'What does this mean?');
   document.querySelectorAll('#seg .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.k===reg.key));
   document.querySelectorAll('#controls .card').forEach(c=>c.classList.toggle('sel', c.dataset.k===reg.key));
 }
@@ -869,6 +877,210 @@ const io = new IntersectionObserver(entries=>{
 }, {threshold:0.15});
 document.querySelectorAll('.lesson').forEach(el=>io.observe(el));
 </script>
+</body></html>
+"""
+
+
+PAGE_EXPLAIN = r"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>In depth: what the demo means</title>
+<style>
+  :root { color-scheme: light dark; --bg:#0f1216; --panel:#171b22; --ink:#e6e9ef; --mut:#8b95a6;
+          --train:#4aa3ff; --held:#ff7ac2; --grid:#2a3140; --ok:#39d98a; --bad:#ff6b6b; --line:#232a35; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:15px/1.65 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  a { color:var(--train); }
+  .wrap { max-width:820px; margin:0 auto; padding:20px; }
+  .backbar { display:flex; justify-content:space-between; align-items:center; padding:16px 0 8px; gap:12px; }
+  .backbtn { background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:999px;
+             padding:8px 15px; font:600 13px system-ui; text-decoration:none; white-space:nowrap; }
+  .backbtn:hover { border-color:var(--held); }
+  h1 { font-size:27px; margin:12px 0 6px; }
+  .lede { color:var(--mut); font-size:15.5px; max-width:66ch; }
+  .toc { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 8px; }
+  .toc a { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 11px;
+           font-size:12.5px; text-decoration:none; color:var(--mut); }
+  .toc a:hover { color:var(--ink); border-color:var(--held); }
+  section.topic { border-top:1px solid var(--line); padding-top:26px; margin-top:34px; scroll-margin-top:16px; }
+  section.topic > h2 { font-size:21px; margin:0 0 4px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .tag { font:600 11px ui-monospace, monospace; padding:2px 8px; border-radius:999px; }
+  .tag.GROKS{ background:rgba(57,217,138,.15); color:var(--ok); }
+  .tag.NOGROK{ background:rgba(74,163,255,.15); color:var(--train); }
+  .tag.MEMORIZES{ background:rgba(255,107,107,.15); color:var(--bad); }
+  .tag.ID{ background:rgba(255,122,194,.15); color:var(--held); }
+  .subtle { color:var(--mut); font-size:14px; margin:4px 0 16px; }
+  .layer { border:1px solid var(--line); border-left:3px solid var(--lc,var(--mut)); border-radius:0 10px 10px 0;
+           padding:12px 16px; margin:12px 0; background:var(--panel); }
+  .layer .lbl { font:700 11px ui-monospace, monospace; letter-spacing:.04em; text-transform:uppercase;
+                color:var(--lc,var(--mut)); margin-bottom:4px; }
+  .layer.plain { --lc:var(--ink); }
+  .layer.ml { --lc:var(--train); }
+  .layer.mt { --lc:var(--held); }
+  .layer p { margin:0; }
+  .mono { font-family:ui-monospace, monospace; }
+  .kicker { color:var(--mut); font-size:12.5px; margin-top:44px; border-top:1px solid var(--line); padding:18px 0 40px; }
+  b { color:var(--ink); }
+</style></head>
+<body>
+<div class="wrap">
+  <div class="backbar">
+    <a class="backbtn" href="/">&larr; Back to the demo</a>
+    <span class="subtle">in depth</span>
+  </div>
+  <h1>What the demo is actually showing</h1>
+  <p class="lede">The live page lets you <i>watch</i> a tiny AI learn. This page explains what you are seeing, three
+    ways: first in everyday language, then in the words a machine-learning researcher would use, then in terms of
+    the specific little machine on the demo page (its makers call it a <b>minimal transformer</b>). Read top to
+    bottom, or jump to the result you clicked from.</p>
+  <div class="toc">
+    <a href="#setup">The machine &amp; the task</a>
+    <a href="#groks">GROKS</a>
+    <a href="#nogrok">NO-GROK</a>
+    <a href="#memorize">MEMORIZES</a>
+    <a href="#identity">Endpoint vs. prior</a>
+    <a href="#why">Why it matters</a>
+  </div>
+
+  <section class="topic" id="setup">
+    <h2>The machine and the task</h2>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>Picture the smallest possible &ldquo;student&rdquo;: a handful of numbers that turn an input into an
+        answer. We give it a simple fixed rule to learn from a few worked examples, the way you'd learn a pattern
+        from a short answer key. Because the student is so small, we can see <b>every</b> number inside it and
+        exactly how it turns each input into an output, which is what makes this a good place to watch learning
+        happen.</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p>The task is the <b>NAND</b> truth table, a two-input logic function. It's encoded as a next-token map over
+        six symbols (four input rows, two output bits), and the model is a one-layer, tied-embedding transformer
+        with a single small weight matrix, trained by gradient descent. NAND is used because it is
+        <i>functionally complete</i>, any Boolean circuit can be built from it, so the toy is not a special case
+        but a universal primitive.</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
+      <p>The step is <span class="mono">next = argmax over v of  emb[v] &middot; (I + M) &middot; emb[x]</span>. Apply
+        it repeatedly and each input token flows to an output token and stays there, so the learned weight
+        <span class="mono">M</span> is fully described by its <b>phase portrait</b>: which inputs land on
+        <span class="mono">O</span> (the bit 1) and which land on <span class="mono">Z</span> (the bit 0). A correct
+        NAND weight reads <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>.</p></div>
+  </section>
+
+  <section class="topic" id="groks">
+    <h2>GROKS <span class="tag GROKS">delayed learning</span></h2>
+    <p class="subtle">You held out one example the rest do not pin down, yet the machine eventually gets it, long
+      after it aced the practice set.</p>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>The student nailed its practice questions almost immediately, then spent a long time looking completely
+        stuck on a new question, getting it wrong over and over. Then, abruptly, it clicked and got the new one
+        right. That late &ldquo;aha&rdquo; is called <b>grokking</b>. The surprise is that the stuck period was not
+        wasted: underneath, the student was steadily getting more sure of the right answer, and the click is simply
+        the moment that quiet confidence finally tipped past the wrong answer.</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p><b>Delayed generalization.</b> Training accuracy saturates at 100% early, but held-out (test) accuracy
+        rises much later, during the continued optimization after the data is already fit. The engine of the delay
+        is the <b>implicit bias</b> of gradient descent: past zero training loss it keeps growing the margin
+        (equivalently, drifts toward the min-norm / max-margin solution). The held-out point isn't logically forced
+        by the training set, but the max-margin solution happens to classify it correctly, so generalization
+        arrives on the margin-growing timescale, not the fitting timescale.</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
+      <p>Hold out row <span class="mono">s</span>. The other rows do not <i>force</i> it: more than one weight fits
+        them while sending <span class="mono">s</span> to different places. Yet from a zero start, gradient descent
+        converges to the single <b>simplest</b> weight, which sends <span class="mono">s&rarr;Z</span>. On the demo
+        you can watch the held-out <b>margin</b> climb across the flat plateau and cross zero at the exact grok
+        step, while the phase portrait undergoes a <b>bifurcation</b>: <span class="mono">s</span> starts as its own
+        dead-end (<span class="mono">s&lt;-s</span>) and its basin is absorbed into <span class="mono">Z</span>
+        (<span class="mono">Z&lt;-Zs</span>) the instant it groks.</p></div>
+  </section>
+
+  <section class="topic" id="nogrok">
+    <h2>NO-GROK <span class="tag NOGROK">instant learning</span></h2>
+    <p class="subtle">You held out an example the others already imply, so there is nothing to delay: it is right as
+      soon as (or before) the practice set is fit.</p>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>Sometimes the hidden question is already answered by the others. If you know two sides of a pattern, the
+        third is obvious, so the moment the student learns the rest, it gets the hidden one for free. No stuck
+        period, no dramatic click, it just knows.</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p>The held-out point is <b>determined</b> by the training constraints (it lies in their span), so the
+        generalizing solution and the fitting solution are one and the same. Generalization coincides with, or even
+        precedes, convergence on the training set; there is no separate implicit-bias phase to wait through, hence
+        no grok gap.</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
+      <p>Hold out a redundant &ldquo;1&rdquo; row such as <span class="mono">r</span>. Rows
+        <span class="mono">p</span> and <span class="mono">q</span> already force it, so the survivor set agrees on
+        <span class="mono">r&rarr;O</span> from the start. The demo shows held-out accuracy reaching 100% at a step
+        <i>before</i> training even finishes fitting, and the endpoint still equals the prior,
+        <span class="mono">O&lt;-Opqr | Z&lt;-Zs</span>.</p></div>
+  </section>
+
+  <section class="topic" id="memorize">
+    <h2>MEMORIZES <span class="tag MEMORIZES">no learning of the rule</span></h2>
+    <p class="subtle">You held out so much that nothing points at the answer, so the machine just memorizes what it
+      saw and never recovers the rule.</p>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>If you hide every example that could teach the underlying pattern, the student has nothing to reason from
+        for the hidden cases. It can still ace the questions it was shown, by rote, but it never figures out the
+        rule, so it stays wrong on everything new, forever. This is the ordinary failure people mean by
+        &ldquo;it just memorized the answers.&rdquo;</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p><b>Underdetermination, i.e. memorization / overfitting.</b> The training set neither logically forces the
+        held-out labels nor makes them the implicit-bias-preferred completion, so no amount of continued training
+        pulls test accuracy up. Train loss goes to zero; test accuracy is stuck below 100%. Grokking needs a
+        generalizing solution to exist and be bias-preferred; remove that and you get pure memorization.</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
+      <p>Hold out all three &ldquo;1&rdquo; rows <span class="mono">{p, q, r}</span>. Only the fixed points remain,
+        which force nothing about the inputs. Training fits the shown rows, but the endpoint's portrait is something
+        like <span class="mono">O&lt;-O | Z&lt;-Zrs | p&lt;-pq</span>, <b>not</b> the NAND prior, and the held-out
+        rows never become correct. This is the sharp control: grokking versus memorizing turns entirely on whether
+        the training rows force the held-out ones.</p></div>
+  </section>
+
+  <section class="topic" id="identity">
+    <h2>Endpoint vs. the prior <span class="tag ID">two roads, one answer</span></h2>
+    <p class="subtle">Whenever it truly learns, the weight it trains into is identical to the &ldquo;simplest&rdquo;
+      weight worked out by hand, evidence the late learning is not luck.</p>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>There are two ways to find the simplest rule that fits the examples: work it out with pen and paper ahead
+        of time, or let the student slowly train until it settles. The striking result is that when the student
+        groks, it lands on the <b>exact same</b> rule the pen-and-paper method picks. So the sudden click is not the
+        machine guessing lucky, it is the machine <i>finding</i> the simplest rule consistent with what it was
+        shown.</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p>This is the implicit bias made concrete. The <b>analytic prior</b> (here the minimum-complexity weight,
+        min-L1) and the <b>SGD endpoint</b> coincide: the solution gradient descent reaches equals the one a
+        min-norm / max-margin criterion selects in closed form. It's a rare case where the dynamical
+        characterization (where training goes) and the variational one (what objective the answer minimizes) are
+        shown to be the same object, not merely argued to be. When the setup memorizes instead, they diverge, the
+        endpoint is not the prior, which is exactly why the identity holds <i>only</i> when it generalizes.</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
+      <p>The demo enumerates the min-L1 weight and prints its phase portrait, then trains a weight by SGD and prints
+        <i>its</i> portrait. In GROKS and NO-GROK they read identically (<span class="mono">O&lt;-Opqr |
+        Z&lt;-Zs</span>): <span class="mono">endpoint == prior</span>. In MEMORIZES they differ:
+        <span class="mono">MISMATCH</span>. Same object when it generalizes; different objects when it only
+        memorizes.</p></div>
+  </section>
+
+  <section class="topic" id="why">
+    <h2>Why this matters</h2>
+    <div class="layer plain"><div class="lbl">In plain terms</div>
+      <p>The same &ldquo;sudden understanding&rdquo; shows up in the huge AI models people use every day, but those
+        are far too big to see inside. This tiny version is small enough to watch completely, so you can see that
+        the sudden click is not magic: it is the machine settling on the simplest rule that fits, and you can see
+        exactly when and why.</p></div>
+    <div class="layer ml"><div class="lbl">In machine-learning terms</div>
+      <p>It is a fully inspectable model of grokking, implicit bias, and the memorization / generalization boundary,
+        where the analytic and dynamical accounts can be checked against each other exactly, deterministically, and
+        end to end. A controlled microscope for phenomena usually studied only at scales where they can't be
+        resolved.</p></div>
+    <div class="layer mt"><div class="lbl">In terms of the minimal transformer</div>
+      <p>Same architecture as a frontier transformer (embed, an update, an argmax readout), shrunk until every
+        weight and every intermediate is legible, with no hidden layers. That legibility is the whole point: it
+        turns &ldquo;it generalized&rdquo; into a picture you can point at, the implicit bias selecting which
+        attractor an undetermined input falls into.</p></div>
+  </section>
+
+  <div class="kicker">Deterministic and torch-free. The numbers behind every claim here are computed live on the
+    demo page and asserted by the project's test suite. <a href="/">&larr; back to the demo</a></div>
+</div>
 </body></html>
 """
 
