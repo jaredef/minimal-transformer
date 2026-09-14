@@ -68,7 +68,8 @@ def train_sgd(train_cons, emb, vocab, d, lr, steps, checkpoints, held=None):
     traj = {}
     for step in range(steps + 1):
         if step in cps:
-            rec = {"train": accuracy(M, train_cons, emb, vocab, d), "wnorm": fro_norm(M, d)}
+            rec = {"train": accuracy(M, train_cons, emb, vocab, d), "wnorm": fro_norm(M, d),
+                   "M": [row[:] for row in M]}
             if held:
                 rec["held"] = accuracy(M, held, emb, vocab, d)
                 # worst-case held margin: >= 0 iff every held row is correct

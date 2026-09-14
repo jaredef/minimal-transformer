@@ -56,12 +56,16 @@ def compute(holdout):
     points = []
     for step in sorted(traj):
         rec = traj[step]
+        Mi = rec["M"]
+        held_pred = [[s, c.predict(Mi, s, emb, vocab, d), t] for s, t in held_cons]
         points.append({
             "step": step,
             "train": rec["train"], "held": rec["held"],
             "train_acc": rec["train"][0] / rec["train"][1],
             "held_acc": rec["held"][0] / rec["held"][1],
             "margin": rec["held_margin"], "wnorm": rec["wnorm"],
+            "portrait": c.portrait(Mi, emb, vocab, d),
+            "held_pred": held_pred,
         })
     fit_at = first_100(points, "train")
     grok_at = first_100(points, "held")
@@ -140,7 +144,17 @@ PAGE = r"""<!doctype html>
   .hero { margin-top:18px; }
   .portrait { margin-top:18px; }
   .mono { font-family:ui-monospace, monospace; }
-  .match { color:var(--ok); } .nomatch { color:var(--bad); }
+  .match { color:var(--ok); } .nomatch { color:var(--bad); } .mut { color:var(--mut); }
+  .scrubwrap { display:flex; align-items:center; gap:12px; margin-top:14px; }
+  .scrubwrap input[type=range]{ flex:1; accent-color:var(--held); }
+  .btn { background:var(--held); color:#111; border:none; border-radius:8px; padding:6px 12px;
+         font:600 13px system-ui; cursor:pointer; }
+  .phase { font:600 12px ui-monospace, monospace; color:var(--ink); white-space:nowrap; }
+  .state { margin-top:12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+           gap:6px 18px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .staterow { display:flex; justify-content:space-between; gap:10px; align-items:baseline;
+              border-bottom:1px dashed var(--line); padding-bottom:3px; }
+  .staterow span:first-child { color:var(--mut); font-size:12px; }
   footer { color:var(--mut); font-size:12px; max-width:1100px; margin:0 auto; padding:0 20px 40px; }
   a { color:var(--train); }
 </style></head>
@@ -171,7 +185,12 @@ function ypos(v,lo,hi){ const f=(v-lo)/(hi-lo); return H-PAD.b-f*(H-PAD.t-PAD.b)
 function path(pts){ return pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' '); }
 function esc(s){ return s.replace(/</g,'&lt;'); }
 
-function accuracyChart(reg, big){
+function cursor(step,maxStep){
+  if(step==null) return '';
+  const x=xpos(step,maxStep);
+  return `<line x1="${x}" y1="${PAD.t}" x2="${x}" y2="${H-PAD.b}" stroke="var(--ink)" stroke-width="1.5" opacity=".8"/>`;
+}
+function accuracyChart(reg, big, curStep){
   const pts=reg.points, maxStep=pts[pts.length-1].step;
   const tr=pts.map(p=>[xpos(p.step,maxStep), ypos(p.train_acc,0,1)]);
   const hd=pts.map(p=>[xpos(p.step,maxStep), ypos(p.held_acc,0,1)]);
@@ -190,7 +209,7 @@ function accuracyChart(reg, big){
   const yt=[0,.5,1].map(v=>`<line x1="${PAD.l}" y1="${ypos(v,0,1)}" x2="${W-PAD.r}" y2="${ypos(v,0,1)}" stroke="var(--grid)"/>
      <text x="${PAD.l-6}" y="${ypos(v,0,1)+3}" fill="var(--mut)" font-size="10" text-anchor="end">${v*100|0}%</text>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="accuracy over steps">
-    ${shade}${yt}${marks}
+    ${shade}${yt}${marks}${cursor(curStep,maxStep)}
     <path d="${path(tr)}" fill="none" stroke="var(--train)" stroke-width="2"/>
     <path d="${path(hd)}" fill="none" stroke="var(--held)" stroke-width="2"/>
     <text x="${PAD.l}" y="${H-6}" fill="var(--mut)" font-size="10">step 0</text>
@@ -198,7 +217,7 @@ function accuracyChart(reg, big){
   </svg>`;
 }
 
-function marginChart(reg){
+function marginChart(reg, curStep){
   const pts=reg.points, maxStep=pts[pts.length-1].step;
   const ms=pts.map(p=>p.margin), lo=Math.min(-0.5,...ms), hi=Math.max(0.5,...ms);
   const mg=pts.map(p=>[xpos(p.step,maxStep), ypos(p.margin,lo,hi)]);
@@ -212,7 +231,7 @@ function marginChart(reg){
     const x0=xpos(reg.fit_at,maxStep), x1=xpos(reg.grok_at,maxStep);
     shade=`<rect x="${x0}" y="${PAD.t}" width="${x1-x0}" height="${H-PAD.t-PAD.b}" fill="var(--ok)" opacity=".07"/>`; }
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="held-out margin over steps">
-    ${shade}
+    ${shade}${cursor(curStep,maxStep)}
     <line x1="${PAD.l}" y1="${zeroY}" x2="${W-PAD.r}" y2="${zeroY}" stroke="var(--mut)" stroke-dasharray="4 3"/>
     <text x="${PAD.l-6}" y="${zeroY+3}" fill="var(--mut)" font-size="10" text-anchor="end">0</text>
     <path d="${path(mg)}" fill="none" stroke="var(--held)" stroke-width="2"/>
@@ -233,16 +252,59 @@ function heroFacts(reg){
   </div>`;
 }
 
+let HERO=null, IDX=0, PLAY=null;
+
+function drawHero(){
+  const reg=HERO, p=reg.points[IDX], correct=p.held_acc===1;
+  document.getElementById('heroCharts').innerHTML =
+    `<div>${accuracyChart(reg,true,p.step)}</div><div>${marginChart(reg,p.step)}</div>`;
+  const predRows = p.held_pred.map(([s,pred,t])=>{
+    const good = pred===t;
+    return `<span class="mono">${s} &rarr; <b class="${good?'match':'nomatch'}">${esc(pred)}</b></span>
+            <span class="mut">(want ${esc(t)})</span>`;
+  }).join(' &nbsp; ');
+  document.getElementById('state').innerHTML =
+    `<div class="staterow"><span>step</span><b class="mono">${p.step}</b></div>
+     <div class="staterow"><span>train acc</span><b class="mono">${(p.train_acc*100).toFixed(0)}%</b></div>
+     <div class="staterow"><span>held-out acc</span><b class="mono ${correct?'match':'nomatch'}">${(p.held_acc*100).toFixed(0)}%</b></div>
+     <div class="staterow"><span>held margin</span><b class="mono ${p.margin>=0?'match':'nomatch'}">${p.margin>=0?'+':''}${p.margin.toFixed(2)}</b></div>
+     <div class="staterow"><span>&#8214;M&#8214;</span><b class="mono">${p.wnorm.toFixed(2)}</b></div>
+     <div class="staterow"><span>held map</span><span>${predRows}</span></div>
+     <div class="staterow"><span>portrait</span><b class="mono ${p.portrait===reg.prior_portrait?'match':''}">${esc(p.portrait)}</b></div>`;
+  let phase='before the fit';
+  if(reg.fit_at!=null && p.step>=reg.fit_at) phase = (reg.grok_at!=null && p.step>=reg.grok_at)
+    ? 'GROKKED &mdash; held-out generalized' : 'ON THE PLATEAU &mdash; train fit, margin still climbing';
+  document.getElementById('phase').innerHTML = phase;
+  document.getElementById('scrub').value = IDX;
+}
+function setIdx(i){ IDX=Math.max(0,Math.min(HERO.points.length-1,i)); drawHero(); }
+function togglePlay(){
+  const btn=document.getElementById('play');
+  if(PLAY){ clearInterval(PLAY); PLAY=null; btn.textContent='▶ play'; return; }
+  btn.textContent='⏸ pause';
+  if(IDX>=HERO.points.length-1) IDX=0;
+  PLAY=setInterval(()=>{ if(IDX>=HERO.points.length-1){ clearInterval(PLAY); PLAY=null; btn.textContent='▶ play'; return; } setIdx(IDX+1); }, 220);
+}
+
 function render(data){
   const reg = data.regimes.find(r=>r.verdict==="GROKS") || data.regimes[0];
+  HERO=reg; IDX=0;
   document.getElementById('hero').innerHTML =
     `<h2>The grok, and its cause <span class="tag ${clsMap[reg.verdict]}">${reg.verdict}</span></h2>
      <div class="legend"><span><span class="sw" style="background:var(--train)"></span>train accuracy</span>
        <span><span class="sw" style="background:var(--held)"></span>held-out accuracy / margin</span>
        <span><span class="sw" style="background:var(--ok);opacity:.5"></span>plateau (fit&rarr;grok)</span></div>
-     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px" class="heropair">
-       <div>${accuracyChart(reg,true)}</div><div>${marginChart(reg)}</div></div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px" class="heropair" id="heroCharts"></div>
+     <div class="scrubwrap">
+       <button id="play" class="btn">&#9654; play</button>
+       <input type="range" id="scrub" min="0" max="${reg.points.length-1}" value="0" step="1">
+       <span id="phase" class="phase"></span>
+     </div>
+     <div class="state" id="state"></div>
      ${heroFacts(reg)}`;
+  document.getElementById('scrub').addEventListener('input', e=>{ if(PLAY){clearInterval(PLAY);PLAY=null;document.getElementById('play').textContent='▶ play';} setIdx(+e.target.value); });
+  document.getElementById('play').addEventListener('click', togglePlay);
+  drawHero();
 
   const P=reg;
   document.getElementById('portrait').innerHTML =
