@@ -78,6 +78,8 @@ def compute(holdout, seed=None):
     fit_at = first_100(points, "train")
     grok_at = first_100(points, "held")
     endpoint = c.portrait(M, emb, vocab, d)
+    # the trained machine's one-step answer for each input row (for the "quiz the machine" game)
+    endpoint_pred = {tok: c.predict(M, tok, emb, vocab, d) for tok in ("p", "q", "r", "s")}
     lo, hi = data.get("range", [-1, 1])
     surv = c.survivors(vocab, emb, form, lo, hi, d)
     prior = c.portrait(c.min_l1(surv, d), emb, vocab, d)
@@ -94,7 +96,7 @@ def compute(holdout, seed=None):
         "train_ms": round(train_ms, 1), "steps": max(CHECKPOINTS),
         "fit_at": fit_at, "grok_at": grok_at, "verdict": verdict,
         "endpoint_portrait": endpoint, "prior_portrait": prior,
-        "portrait_match": endpoint == prior,
+        "portrait_match": endpoint == prior, "endpoint_pred": endpoint_pred,
     }
 
 
@@ -210,6 +212,23 @@ PAGE = r"""<!doctype html>
   .card[data-k] { cursor:pointer; transition:border-color .12s, transform .12s; }
   .card[data-k]:hover { border-color:var(--held); transform:translateY(-1px); }
   .card.sel { border-color:var(--held); box-shadow:0 0 0 1px var(--held); }
+  .gtable { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .grow { display:grid; grid-template-columns:96px 108px 1fr auto; align-items:center; gap:10px;
+          padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); }
+  .grow.gheld { border-color:var(--held); }
+  .gin { font:600 13px ui-monospace, monospace; }
+  .gwant { color:var(--mut); font-size:12.5px; }
+  .gbadge { justify-self:start; font:600 10px ui-monospace, monospace; color:var(--held);
+            background:rgba(255,122,194,.13); padding:2px 7px; border-radius:999px; white-space:nowrap; }
+  .gans { justify-self:end; }
+  .askbtn { background:var(--held); color:#111; border:none; border-radius:7px; padding:5px 13px;
+            font:600 12px system-ui; cursor:pointer; }
+  .gres { font:600 13px ui-monospace, monospace; white-space:nowrap; }
+  .gres.gok { color:var(--ok); } .gres.gno { color:var(--bad); }
+  .gscore { margin-top:12px; font-size:14px; }
+  .gscore.gok { color:var(--ok); } .gscore.gno { color:var(--bad); }
+  .gstate { font-size:14px; margin:8px 0 2px; }
+  @media (max-width:560px){ .grow{ grid-template-columns:1fr auto; row-gap:4px; } .gwant,.gbadge{ grid-column:1; } }
   .portrait { margin-top:18px; }
   .mono { font-family:ui-monospace, monospace; }
   .match { color:var(--ok); } .nomatch { color:var(--bad); } .mut { color:var(--mut); }
@@ -305,6 +324,8 @@ PAGE = r"""<!doctype html>
   <div class="portrait card" id="portrait"></div>
   <h2 style="max-width:1100px;margin:26px auto 10px;font-size:16px;">The three controls</h2>
   <div class="grid" id="controls"></div>
+  <h2 style="max-width:1100px;margin:26px auto 10px;font-size:16px;">Quiz the machine</h2>
+  <div class="card" id="game"></div>
 </main>
 <section id="learn">
   <div class="learnintro">
@@ -880,6 +901,55 @@ function selectRegime(key){
   document.querySelectorAll('#controls .card').forEach(c=>c.classList.toggle('sel', c.dataset.k===reg.key));
 }
 
+let GAMEKEY='groks';
+const ASKED={};
+const GROWS=[['p',0,0],['q',0,1],['r',1,0],['s',1,1]];
+function bitOf(pred){ return pred==='O'?1 : pred==='Z'?0 : null; }
+function renderGame(){
+  const reg = DATA.regimes.find(r=>r.key===GAMEKEY) || DATA.regimes[0];
+  const head = {
+    groks:"This machine <b>grokked</b>: it learned the real rule. It should get every input right, <i>including</i> the row it never practiced.",
+    nogrok:"This machine generalized immediately. It should get every input right.",
+    memorize:"This machine only <b>memorized</b> its practice rows. Watch it <b>fail</b> on the inputs it never practiced."
+  }[reg.key];
+  const held = reg.holdout;
+  const seen = ASKED[reg.key] || {};
+  let correct=0;
+  const rows = GROWS.map(([tok,a,b])=>{
+    const want = 1-(a&b), isHeld = held.indexOf(tok)>=0;
+    let cell;
+    if(!seen[tok]){
+      cell = `<button class="askbtn" data-tok="${tok}">ask &rarr;</button>`;
+    } else {
+      const mb = bitOf(reg.endpoint_pred[tok]), ok = mb===want;
+      if(ok) correct++;
+      cell = `<span class="gres ${ok?'gok':'gno'}">${ok?'&#10003;':'&#10007;'} machine says <b>${mb===null?'(no bit)':mb}</b></span>`;
+    }
+    return `<div class="grow ${isHeld?'gheld':''}">
+      <span class="gin">A=${a} &nbsp; B=${b}</span>
+      <span class="gwant">NAND = <b>${want}</b></span>
+      ${isHeld?'<span class="gbadge">never practiced</span>':'<span></span>'}
+      <span class="gans">${cell}</span></div>`;
+  }).join('');
+  const nAsked = Object.keys(seen).length, gotAll = nAsked===4;
+  const score = gotAll
+    ? `<div class="gscore ${correct===4?'gok':'gno'}">This machine answered <b>${correct} / 4</b> correctly`
+      + `${correct===4?'.':', it never really learned the rule.'}</div>`
+    : `<div class="gscore mut">Click <b>ask</b> on each input to quiz the machine (${nAsked}/4 asked).</div>`;
+  document.getElementById('game').innerHTML =
+    `<p class="herohint">Feed the trained machine an input and see its answer. Pick which trained brain to quiz:</p>
+     <div class="seg" id="gseg">
+       <button class="segbtn" data-gk="groks">the grokked one</button>
+       <button class="segbtn" data-gk="nogrok">the no-grok one</button>
+       <button class="segbtn" data-gk="memorize">the memorized one</button>
+     </div>
+     <p class="gstate">${head}</p>
+     <div class="gtable">${rows}</div>
+     ${score}
+     <div class="mut" style="font-size:12px;margin-top:10px">Reset: <a href="#" id="greset">quiz again</a></div>`;
+  document.querySelectorAll('#gseg .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.gk===reg.key));
+}
+
 function render(data){
   DATA=data;
   document.getElementById('hero').innerHTML =
@@ -923,7 +993,14 @@ function render(data){
     document.getElementById('hero').scrollIntoView({behavior:'smooth', block:'start'});
   });
 
+  document.getElementById('game').addEventListener('click', e=>{
+    const gk=e.target.closest('.segbtn'); if(gk && gk.dataset.gk){ GAMEKEY=gk.dataset.gk; renderGame(); return; }
+    const ask=e.target.closest('.askbtn'); if(ask){ (ASKED[GAMEKEY]=ASKED[GAMEKEY]||{})[ask.dataset.tok]=true; renderGame(); return; }
+    if(e.target.id==='greset'){ e.preventDefault(); ASKED[GAMEKEY]={}; renderGame(); return; }
+  });
+
   selectRegime(CURKEY);
+  renderGame();
 }
 
 fetch('/api/data').then(r=>r.json()).then(render)

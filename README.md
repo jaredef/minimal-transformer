@@ -97,6 +97,10 @@ three controls (GROKS / NO-GROK / MEMORIZES) side by side.
   sweeps the trajectory so you watch it grok again. It groks every time and always lands on the same prior
   portrait — the grok is the implicit bias, not an artifact of the zero init. (The CLI probes stay
   zero-init and deterministic; the random restart is a server-only demo.)
+- **Quiz the machine** — a game below the three controls: pick which trained brain to test (the grokked, the
+  no-grok, or the memorized one) and feed it each of the four NAND inputs. The grokked and no-grok machines
+  answer 4/4 (including the input they never practiced); the memorized machine fails on exactly the inputs it
+  never saw. Uses the trained endpoint weight's one-step prediction per input.
 - **Learn more** (top-right button) — a progressive, layman-friendly tutorial that reveals on scroll: what a
   transformer is, how each part maps onto this lowered transformer, orbits and attractors, the NAND task,
   training, grokking, why the plateau isn't idle, the implicit-bias prior, the three controls, and what the
