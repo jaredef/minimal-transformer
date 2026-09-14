@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """minimal-transformer visualization server -- stdlib only, no dependencies.
 
-Serves a single page that SHOWS grokking took place on the NAND lowered transformer:
+Serves a single page that shows grokking on the minimal NAND transformer:
   - the accuracy gap (train fits early, held-out generalizes late),
   - the held-out margin climbing across the plateau and crossing zero exactly at the grok step
-    (the mechanism: continued descent, not luck),
+    (the mechanism: continued optimization, not luck),
   - the three controls side by side (GROKS / NO-GROK / MEMORIZES), and
-  - the identity endpoint_portrait == min-L1 prior portrait (NO-6).
+  - the trained weight's portrait equals the minimum-L1-norm weight's portrait.
 
 Run:  python3 server/app.py    then open http://localhost:8000
 """
@@ -1053,9 +1053,9 @@ def _code_blocks():
          "what the slider steps through; the rest is just recording snapshots to visualize.",
          src(c.train_sgd)),
         ("The analytic prior: enumerate, then take the simplest",
-         "No training here at all. List every one of the 3<sup>9</sup> = 19,683 integer weights, keep those "
-         "that fit the rows (the survivor set), and return the smallest by L1. This is the prior the trained "
-         "weight is shown to match.",
+         "No training here at all. List every one of the 3<sup>9</sup> = 19,683 integer weights, keep the "
+         "ones that fit the rows, and return the smallest by L1 norm. This minimum-norm weight is what the "
+         "trained weight is shown to match.",
          src(c.survivors, c.min_l1)),
         ("The phase portrait: iterate to attractors",
          "Follow each token under the map until it repeats, then group tokens by where they land. This is the "

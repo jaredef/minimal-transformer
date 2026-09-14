@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""nand-grok-evidence (NO-5, NO-6): PROVE grokking happened, don't just plot a suggestive gap.
+"""nand-grok-evidence (NO-5, NO-6): show grokking actually happened, don't just plot a suggestive gap.
 
-A late-rising held-out accuracy curve is only the SYMPTOM. Grokking is the claim that learning KEPT
-HAPPENING during the apparent plateau and CAUSED the late jump. These two rungs witness the cause.
+A late-rising held-out accuracy curve is only the symptom. Grokking is the claim that learning kept
+happening during the apparent plateau and caused the late jump. These two checks demonstrate the cause.
 
-    NO-5  MARGIN-CROSSES-AT-GROK   the mechanism. On the plateau where TRAIN accuracy is already 100% and
-          nothing seems to be happening, the HELD-OUT margin (logit(correct) - max other) is still
-          NEGATIVE at the fit, climbs MONOTONICALLY, and crosses zero EXACTLY at the grok step -- while
-          ||M|| keeps rising. The flip is a smooth threshold crossing driven by continued descent, not a
-          jump: the plateau is not a stationary point. This is what makes it grokking and not luck.
+    NO-5  MARGIN-CROSSES-AT-GROK   the mechanism. On the plateau where training accuracy is already 100% and
+          nothing seems to be happening, the held-out margin (logit(correct) - max other logit) is still
+          negative at the fit, increases monotonically, and crosses zero exactly at the grok step, while
+          ||M|| keeps rising. The flip is a smooth threshold crossing driven by continued optimization, not
+          a jump: the plateau is not a stationary point. This is what makes it grokking and not luck.
 
-    NO-6  SGD-ENDPOINT-IS-THE-PRIOR   the identity. Trained holding out s, the SGD endpoint's phase
-          portrait equals the min-L1 PRIOR portrait that NO-3 selects analytically (O<-Opqr|Z<-Zs). The
-          dynamic grok and the static implicit-bias prior are literally the same object -- an independent
-          oracle the SGD run lands on, not a re-plot of its own output.
+    NO-6  SGD-ENDPOINT-IS-THE-PRIOR   the identity. Trained holding out s, the trained weight's phase
+          portrait equals the minimum-L1-norm weight's portrait computed by exhaustive search
+          (O<-Opqr|Z<-Zs). The trained solution and the minimum-norm solution are the same object, an
+          independent reference the run lands on, not a re-plot of its own output.
 
-Deterministic, torch-free, fail-closed. See probes/nand_core.py for the shared step and training."""
+Deterministic, no machine-learning libraries, fail-closed. See probes/nand_core.py for the shared step and
+training loop."""
 import os
 import sys
 

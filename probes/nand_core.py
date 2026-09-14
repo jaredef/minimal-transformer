@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Shared core for the NAND lowered-transformer probes and the visualization server.
+"""Shared core for the NAND minimal-transformer probes and the visualization server.
 
-A lowered transformer over the 6-token NAND encoding: token x has embedding emb[x] in Z^d, the step is
-    f(x) = argmax_v  emb[v] . (I + M) . emb[x]        (tied embeddings: unemb == emb)
-The weight M is either the min-L1 integer PRIOR (enumerated) or LEARNED by SGD. This module provides both,
-plus the training trajectory (accuracy, held-out margin, ||M||) and the phase portrait, so the CLI probes
-and the server all report the same numbers. Deterministic, torch-free (stdlib only)."""
+A minimal one-layer transformer over a 6-token encoding of the NAND truth table: token x has an embedding
+emb[x] in Z^d, and one step is
+    f(x) = argmax_v  emb[v] . (I + M) . emb[x]        (tied embeddings: unembed == embed)
+The weight M is obtained two ways: the minimum-L1-norm weight found by exhaustive search over the small
+integer weight space, or a weight learned by gradient descent. This module provides both, plus the training
+trajectory (accuracy, held-out margin, ||M||) and the phase portrait, so every probe and the server report
+the same numbers. Deterministic, and pure-Python with no machine-learning libraries."""
 import itertools
 import json
 import math
 import random
 
 
-# ---- the lowered-transformer step -------------------------------------------------
+# ---- the minimal-transformer step -------------------------------------------------
 
 def add_id(M, d):
     return [[M[r][c] + (1 if r == c else 0) for c in range(d)] for r in range(d)]
@@ -62,10 +64,10 @@ def fro_norm(M, d):
 # ---- the two ways to get M --------------------------------------------------------
 
 def train_sgd(train_cons, emb, vocab, d, lr, steps, checkpoints, held=None, seed=None, init_scale=0.15):
-    """SGD with the enumerable-transformer DYN-1 gradient (p_u - onehot)*emb[u]*emb[s], tied embeddings.
-    seed=None gives ZERO init (the deterministic corpus discipline the CLI probes assert); an integer seed
-    gives a small deterministic RANDOM init, so 'train again' starts from a fresh point and still groks.
-    Returns (final_M, trajectory) recording the state at each checkpoint."""
+    """Gradient descent with the softmax cross-entropy gradient (p_u - onehot)*emb[u]*emb[s], tied
+    embeddings. seed=None gives a zero initialization (the deterministic default the tests assert); an
+    integer seed gives a small deterministic random initialization, so 'train again' starts from a fresh
+    point and still generalizes. Returns (final_M, trajectory) recording the state at each checkpoint."""
     if seed is None:
         M = [[0.0] * d for _ in range(d)]
     else:

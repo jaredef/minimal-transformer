@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""transformer-nand-orbit (NO-1..3): the NAND gate, read as the ORBIT of a lowered transformer. A lowered transformer is a deterministic
-dynamical system (enumerable-transformer paper, section 4.12): the compiled weight is the dynamics, the seed is the initial condition, the
-orbit is the generation, and the reachable behaviours are the attractors. Encoding NAND as a next-token map over 6 tokens -- the four input
-rows p,q,r,s = (00,01,10,11) and the two output bits O=1, Z=0, with the outputs as fixed points -- and compiling the min-L1 integer weight
-that realises it (no gradient descent, just the enumerable bench), the PHASE PORTRAIT is exactly the truth table: two fixed-point attractors
-(the two output values), whose BASINS are the NAND preimages -- three rows flow to O (NAND=1), the one row s=(1,1) flows to Z (NAND=0), the 3:1
-asymmetry that IS NAND. And the grokking is prior-conditional: hold out the fourth row and the other three do not FORCE it (the survivor set
-disagrees), yet the min-L1 weight -- the implicit bias -- selects the generalising dynamics (s->Z) anyway: selection is the prior (section 4.10),
-the exact dynamical-systems companion of the statistical grok watched on the 30B (transformer-mp-30b-traj). Deterministic, torch-free.
+"""nand-orbit (NO-1..3): the NAND gate as the iterated map of a minimal transformer. A minimal transformer
+is a deterministic dynamical system: the weight is the map, the input token is the initial state, iterating
+it gives a trajectory, and the reachable states are its attractors. NAND is encoded as a next-token map over
+6 tokens -- the four input rows p,q,r,s = (00,01,10,11) and the two output bits O=1, Z=0, with the outputs
+as fixed points. Taking the minimum-L1-norm integer weight that fits it (no gradient descent, just exhaustive
+search), the phase portrait is exactly the truth table: two fixed-point attractors (the two output values),
+whose basins are the NAND preimages -- three rows map to O (NAND=1), the one row s=(1,1) maps to Z (NAND=0),
+the 3:1 asymmetry that is NAND. Generalization is decided by the implicit bias: hold out the fourth row and
+the others do not force it (the consistent-weight set disagrees), yet the minimum-L1-norm weight still picks
+the generalizing map (s->Z). Deterministic, no machine-learning libraries.
 
-    NO-1  THE-NAND-ORBIT  compiled to a weight, NAND's phase portrait is two fixed-point attractors (the output bits O,Z); every input row seeded flows in one step to its correct output and stays -- generation is the orbit, the reachable behaviours are exactly the attractors.
-    NO-2  THE-BASINS-ARE-THE-TRUTH-TABLE  the basin of O is {p,q,r} (the rows with NAND=1) and the basin of Z is {s} (the one row with NAND=0); the dynamical basins reproduce the NAND truth table exactly -- the 3:1 basin asymmetry IS the gate.
-    NO-3  GROK-IS-PRIOR-CONDITIONAL  hold out row s; the other three do NOT force it (survivors send s to more than one place), yet the min-L1 weight -- the prior -- selects the generalising dynamics s->Z; selection is the prior, grok via implicit bias, the exact companion of the 30B statistical grok.
+    NO-1  THE-NAND-ORBIT  with the fitted weight, NAND's phase portrait is two fixed-point attractors (the output bits O,Z); every input row maps in one step to its correct output and stays there.
+    NO-2  THE-BASINS-ARE-THE-TRUTH-TABLE  the basin of O is {p,q,r} (the rows with NAND=1) and the basin of Z is {s} (the one row with NAND=0); the basins reproduce the NAND truth table exactly -- the 3:1 basin asymmetry is the gate.
+    NO-3  GROK-IS-PRIOR-CONDITIONAL  hold out row s; the other three do not force it (consistent weights send s to more than one place), yet the minimum-L1-norm weight selects the generalizing map s->Z: generalization here comes from the implicit bias, not from the data forcing the answer.
 """
 import itertools, json, os, sys
 def add_id(w): n=len(w); return [[w[r][c]+(1 if r==c else 0) for c in range(n)] for r in range(n)]
