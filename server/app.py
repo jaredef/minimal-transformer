@@ -248,7 +248,8 @@ PAGE = r"""<!doctype html>
               border-radius:999px; padding:8px 16px; font:600 13px system-ui; text-decoration:none;
               white-space:nowrap; transition:border-color .15s, transform .15s; }
   .learnbtn:hover { border-color:var(--held); transform:translateY(-1px); }
-  .learnbtn.sm { display:inline-block; margin-top:10px; padding:5px 12px; font-size:12px; }
+  a.term { color:var(--held); text-decoration:none; border-bottom:1px dotted var(--held); cursor:pointer; }
+  a.term:hover { border-bottom-style:solid; }
   /* tutorial */
   #learn { max-width:760px; margin:56px auto 0; padding:0 20px; }
   .learnintro { border-top:1px solid var(--line); padding-top:40px; }
@@ -730,24 +731,29 @@ function marginChart(reg, curStep){
   </svg>`;
 }
 
+function gl(text, anchor){
+  return `<a class="term" href="/explain#${anchor}" target="_blank" rel="noopener">${text}</a>`;
+}
 function heroFacts(reg){
   const mFit = reg.points.find(p=>p.step===reg.fit_at);
   if(reg.verdict==="GROKS"){
     const gap = reg.grok_at-reg.fit_at;
     return `train hits 100% at <b>step ${reg.fit_at}</b> &rarr; held-out only at <b>step ${reg.grok_at}</b>
-      (a <b>${gap}-step</b> grok gap). Held out <b>{${reg.holdout.join(',')}}</b>, which the other rows do
-      <b>not</b> force, yet the implicit bias generalizes it. At the fit the held-out margin is
-      <b>${mFit?mFit.margin.toFixed(2):'?'}</b> (wrong); it climbs across the shaded plateau and the
-      zero-crossing <b>is</b> the grok.`;
+      (a <b>${gap}-step</b> ${gl('grok','groks')} gap). Held out <b>{${reg.holdout.join(',')}}</b>, which the other
+      rows do <b>not</b> force, yet the ${gl('implicit bias','implicit-bias')} generalizes it. At the fit the
+      held-out margin is <b>${mFit?mFit.margin.toFixed(2):'?'}</b> (wrong); it climbs across the shaded plateau and
+      the zero-crossing <b>is</b> the grok.`;
   }
   if(reg.verdict==="NO-GROK"){
     return `held out <b>{${reg.holdout.join(',')}}</b>, a row the others already <b>force</b>. So held-out
       generalizes at <b>step ${reg.grok_at}</b>, as soon as (here before) train even fits at
-      <b>step ${reg.fit_at}</b>. No plateau, no implicit-bias phase, <b>no grok gap</b>.`;
+      <b>step ${reg.fit_at}</b>. No plateau, no ${gl('implicit-bias','implicit-bias')} phase,
+      <b>no ${gl('grok','groks')} gap</b>.`;
   }
   return `held out <b>{${reg.holdout.join(',')}}</b>, every &ldquo;1&rdquo; row, so nothing is left to
     <b>force</b> them. Train still fits at <b>step ${reg.fit_at}</b>, but held-out <b>never</b> reaches 100%:
-    with no forcing and no implicit-bias target, gradient descent just <b>memorizes</b> the training rows.`;
+    with no forcing and no ${gl('implicit-bias','implicit-bias')} target, gradient descent just
+    ${gl('memorizes','memorize')} the training rows.`;
 }
 
 let HERO=null, IDX=0, PLAY=null, MAXSTEP=1;
@@ -832,21 +838,18 @@ let DATA=null, CURKEY='groks';
 function portraitCard(reg){
   const m = reg.portrait_match;
   const body = m
-    ? `Trained holding out <b>{${reg.holdout.join(',')}}</b>, the SGD endpoint's phase portrait equals the
-       analytic min-L1 prior, the dynamic result and the static implicit-bias prior are the same object.`
-    : `Holding out every &ldquo;1&rdquo; row, SGD <b>memorizes</b>: its endpoint does <b>not</b> reach the prior
-       portrait, because nothing forced it there. The identity holds only when it generalizes.`;
+    ? `Trained holding out <b>{${reg.holdout.join(',')}}</b>, the SGD endpoint's ${gl('phase portrait','portrait')}
+       equals the analytic min-L1 prior, the dynamic result and the static ${gl('implicit-bias','implicit-bias')}
+       prior are the same object.`
+    : `Holding out every &ldquo;1&rdquo; row, SGD ${gl('memorizes','memorize')}: its endpoint does <b>not</b> reach
+       the prior ${gl('portrait','portrait')}, because nothing forced it there. The identity holds only when it
+       generalizes.`;
   return `<h2>The endpoint vs. the prior <span class="tag ${m?'GROKS':'MEMORIZES'}">${m?'MATCH':'MISMATCH'}</span></h2>
      <div class="facts">${body}<br>
        SGD endpoint: <span class="mono ${m?'match':'nomatch'}">${esc(reg.endpoint_portrait)}</span><br>
        min-L1 prior: <span class="mono ${m?'match':'nomatch'}">${esc(reg.prior_portrait)}</span></div>
      <div class="pnote">Reading it: <span class="mono">X&lt;-Yz</span> means tokens <b>Y</b> and <b>z</b> both settle
-       on <b>X</b>. So <span class="mono">O&lt;-Opqr</span> = p, q, r all land on the bit 1.
-       <a href="/explain#portrait" target="_blank" rel="noopener">how to read this &#8599;</a></div>`;
-}
-
-function learnLink(href,label){
-  return `<a class="learnbtn sm" href="${href}" target="_blank" rel="noopener">${label} &#8599;</a>`;
+       on <b>X</b>. So <span class="mono">O&lt;-Opqr</span> = p, q, r all land on the bit 1.</div>`;
 }
 function selectRegime(key){
   const reg = DATA.regimes.find(r=>r.key===key) || DATA.regimes[0];
@@ -859,10 +862,8 @@ function selectRegime(key){
   document.getElementById('timenote').innerHTML =
     `&#9201; this run actually learned in about <b>${ms} ms</b> of real compute (${reg.steps} training steps). `
     + `You're watching it in slow motion: the animation stretches that to ~2.5 s, roughly <b>${slow}&times;</b> slower, so the change is visible.`;
-  document.getElementById('facts').innerHTML = heroFacts(reg)
-    + learnLink('/explain#'+reg.key, 'What does this mean?');
-  document.getElementById('portrait').innerHTML = portraitCard(reg)
-    + learnLink('/explain#identity', 'What does this mean?');
+  document.getElementById('facts').innerHTML = heroFacts(reg);
+  document.getElementById('portrait').innerHTML = portraitCard(reg);
   document.querySelectorAll('#seg .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.k===reg.key));
   document.querySelectorAll('#controls .card').forEach(c=>c.classList.toggle('sel', c.dataset.k===reg.key));
 }
@@ -891,10 +892,7 @@ function render(data){
      <div class="timenote mut" id="timenote"></div>
      <div class="state" id="state"></div>
      <div class="weights" id="weights"></div>
-     <div id="facts" class="facts"></div>
-     <div class="terms mut">New here?
-       <a href="/explain#implicit-bias" target="_blank" rel="noopener">what is &ldquo;implicit bias&rdquo;?</a>
-       &middot; <a href="/explain#portrait" target="_blank" rel="noopener">how to read the portrait?</a></div>`;
+     <div id="facts" class="facts"></div>`;
   document.getElementById('scrub').addEventListener('input', e=>{ if(PLAY){clearInterval(PLAY);PLAY=null;} setIdx(+e.target.value); });
   document.getElementById('redo').addEventListener('click', redo);
   document.getElementById('seg').addEventListener('click', e=>{ const b=e.target.closest('.segbtn'); if(b) selectRegime(b.dataset.k); });
