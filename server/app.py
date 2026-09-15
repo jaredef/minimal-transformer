@@ -14,6 +14,7 @@ import json
 import html
 import inspect
 import os
+import random
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,16 +25,20 @@ import nand_core as c  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIX = os.path.join(HERE, "..", "fixtures", "nand-groks-in-time.json")
-GROK_VIZ = os.path.join(HERE, "grok_viz.json")  # precomputed by grokking/build_viz.py (numpy)
+GROKDIR = os.path.join(HERE, "..", "grokking")  # the numpy grokking companion
+_GROK = {}
 
 
-def grok_viz_bytes():
-    """The precomputed grokking trajectory as JSON bytes, or None if it hasn't been built."""
-    try:
-        with open(GROK_VIZ, "rb") as fh:
-            return fh.read()
-    except OSError:
-        return None
+def grok_modules():
+    """Lazily import the grokking training modules (numpy). Raises if numpy isn't installed, so the
+    stdlib core and server keep working without it -- only the live /grokking training needs numpy."""
+    if "modadd" not in _GROK:
+        if GROKDIR not in sys.path:
+            sys.path.insert(0, GROKDIR)
+        import modadd
+        import fourier
+        _GROK["modadd"], _GROK["fourier"] = modadd, fourier
+    return _GROK["modadd"], _GROK["fourier"]
 
 # record EVERY step so the scrubber moves one training step at a time
 VIZ_STEPS = 400
@@ -165,6 +170,65 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _stream_grokking(self, qs):
+        """Train a grokking (or memorizing) model live and stream each checkpoint as Server-Sent
+        Events, so the page can plot the trajectory as it actually trains."""
+        try:
+            modadd, fourier = grok_modules()
+        except Exception as exc:  # numpy missing, etc.
+            msg = ("event: fail\ndata: " + json.dumps({"error": str(exc)}) + "\n\n").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            self.wfile.write(msg)
+            return
+        which = qs.get("which", ["grokked"])[0]
+        act, wd = ("relu", 1.0) if which == "memorized" else ("quad", 1.0)
+        # frac 0.8 groks reliably early; steps sized so the grok lands mid-graph, never off the edge.
+        p, d, H, frac, steps, ckpt = 11, 64, 256, 0.8, 12000, 200
+        # verified seeds that grok cleanly by ~step 7000 (so the jump always lands mid-graph); pick one
+        # at random for variety on retrain. Many random seeds do NOT grok in budget, hence the pool.
+        # The memorizing control never groks, so any seed is fine.
+        pool = [0, 1, 4, 5, 7, 8, 13]
+        try:
+            seed = int(qs["seed"][0])
+        except (KeyError, ValueError):
+            seed = random.choice(pool) if which != "memorized" else random.randint(0, 9999)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+
+        def sse(event, obj):
+            data = json.dumps(obj, separators=(",", ":"))
+            head = ("event: %s\n" % event) if event else ""
+            self.wfile.write((head + "data: " + data + "\n\n").encode("utf-8"))
+            self.wfile.flush()
+
+        np = modadd.np
+        # a fixed, assorted sample of 96 weights spread evenly across all three matrices
+        # (embeddings E, layer 1 W1, layer 2 W2), so the heatmap shows the whole model at a glance.
+        n_params = p * d + 2 * d * H + H * p
+        w_idx = np.linspace(0, n_params - 1, 96).astype(int)
+
+        def on_ckpt(step, params, ta, va, wn):
+            spec = fourier.embedding_spectrum(params["E"], p)
+            flat = np.concatenate([params["E"].ravel(), params["W1"].ravel(), params["W2"].ravel()])
+            sse(None, {"step": step, "train_acc": round(ta, 4), "val_acc": round(va, 4),
+                       "norm": round(wn, 3), "top2": round(fourier.concentration(spec, 2), 4),
+                       "spectrum": [round(float(x), 4) for x in spec],
+                       "w": [round(float(flat[i]), 3) for i in w_idx]})
+
+        try:
+            sse("meta", {"p": p, "d": d, "H": H, "frac": frac, "steps": steps, "which": which,
+                         "n_train": int(frac * p * p), "n_val": p * p - int(frac * p * p),
+                         "n_params": p * d + 2 * d * H + H * p})
+            modadd.train(act=act, p=p, d=d, H=H, frac=frac, wd=wd, steps=steps, seed=seed,
+                         ckpt=ckpt, on_ckpt=on_ckpt)
+            sse("done", {})
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # client navigated away or restarted; stop training this stream
+
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/" or path == "/index.html":
@@ -173,13 +237,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, PAGE_EXPLAIN.encode("utf-8"), "text/html; charset=utf-8")
         elif path == "/grokking" or path == "/grokking.html":
             self._send(200, PAGE_GROKKING.encode("utf-8"), "text/html; charset=utf-8")
-        elif path == "/api/grokking":
-            body = grok_viz_bytes()
-            if body is None:
-                self._send(404, b'{"error":"not built: run  python3 grokking/build_viz.py"}',
-                           "application/json")
-            else:
-                self._send(200, body, "application/json")
+        elif path == "/api/grokking/stream":
+            self._stream_grokking(parse_qs(urlparse(self.path).query))
         elif path == "/api/data":
             qs = parse_qs(urlparse(self.path).query)
             seed = None
@@ -1489,6 +1548,12 @@ PAGE_GROKKING = r"""<!doctype html>
   .scrubwrap input[type=range]{ flex:1; accent-color:var(--held); }
   .btn { background:var(--held); color:#111; border:none; border-radius:8px; padding:6px 12px;
          font:600 13px system-ui; cursor:pointer; }
+  .gobtn { padding:12px 22px; font-size:15px; border-radius:10px; }
+  .gobtn:hover { filter:brightness(1.05); }
+  .wpanel { margin-top:12px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .wtitle { font-size:12px; color:var(--mut); margin-bottom:6px; }
+  .wgrid { display:grid; grid-template-columns:repeat(24,1fr); gap:2px; }
+  .wcell { aspect-ratio:1; border-radius:2px; border:1px solid var(--line); }
   .seg { display:inline-flex; gap:4px; padding:4px; background:var(--bg); border:1px solid var(--line);
          border-radius:10px; margin-top:8px; }
   .segbtn { background:transparent; border:none; color:var(--mut); font:600 12.5px ui-monospace, monospace;
@@ -1511,7 +1576,6 @@ PAGE_GROKKING = r"""<!doctype html>
   .layer .lbl { font:700 11px ui-monospace, monospace; text-transform:uppercase; color:var(--lc,var(--mut)); margin-bottom:4px; }
   .layer.plain{ --lc:var(--ink);} .layer.ml{ --lc:var(--train);} .layer.mt{ --lc:var(--held);}
   .layer p { margin:0; font-size:14px; }
-  .notbuilt { background:var(--bg); border:1px solid var(--bad); border-radius:10px; padding:16px; color:var(--ink); }
   footer { color:var(--mut); font-size:12px; padding:22px 0 40px; }
   @media (max-width:560px){
     .wrap { padding:16px; }
@@ -1521,6 +1585,7 @@ PAGE_GROKKING = r"""<!doctype html>
     .scrubwrap input[type=range] { order:3; flex-basis:100%; }
     section.topic h2 { font-size:16px; }
     .layer { padding:11px 13px; }
+    .wgrid { grid-template-columns:repeat(16,1fr); }
   }
 </style></head>
 <body>
@@ -1575,131 +1640,144 @@ PAGE_GROKKING = r"""<!doctype html>
         <span class="mono">grokking/</span> in the repo.</p></div>
   </section>
 
-  <footer>Precomputed by <span class="mono">grokking/build_viz.py</span> (numpy); served as static JSON so the
-    page itself stays dependency-free. Jared Foy &copy; 2026 &middot;
+  <footer>Jared Foy &copy; 2026 &middot;
     <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></footer>
 </div>
 
 <script>
 const W=560,H=240,PAD={l:40,r:14,t:16,b:30};
-let DATA=null, WHICH='grokked', IDX=0, PLAY=null, MAXN=1;
-function xp(i,n){ return PAD.l + (n<=1?0:i/(n-1))*(W-PAD.l-PAD.r); }
+let ROWS=[], META=null, WHICH='grokked', IDX=0, FOLLOW=true, ES=null, MAXW=0.5;
+function weightGrid(w){
+  if(!w) return '';
+  for(const v of w){ const a=Math.abs(v); if(a>MAXW) MAXW=a; }
+  return w.map(v=>{ const a=Math.min(1,Math.abs(v)/MAXW);
+    const c = v<0 ? `rgba(74,163,255,${a.toFixed(3)})` : `rgba(255,122,194,${a.toFixed(3)})`;
+    return `<div class="wcell" style="background:${c}"></div>`; }).join('');
+}
+function xstep(s){ return PAD.l + (META? s/META.steps:0)*(W-PAD.l-PAD.r); }
 function yp(v,lo,hi){ return H-PAD.b-((v-lo)/(hi-lo))*(H-PAD.t-PAD.b); }
-function pth(pts){ return pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' '); }
+function pth(pts){ return pts.length? pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ') : ''; }
 function esc(s){ return (''+s).replace(/</g,'&lt;'); }
+function fitStep(){ for(const r of ROWS) if(r.train_acc>=1) return r.step; return null; }
+function grokStep(){ if(WHICH==='memorized') return null; for(const r of ROWS) if(r.val_acc>=0.9) return r.step; return null; }
+function maxNorm(){ return Math.max(1, ...ROWS.map(r=>r.norm)); }
 
-function accChart(rows, cur){
-  const n=rows.length;
-  const tr=rows.map((r,i)=>[xp(i,n), yp(r.train_acc,0,1)]);
-  const va=rows.map((r,i)=>[xp(i,n), yp(r.val_acc,0,1)]);
-  const nm=rows.map((r,i)=>[xp(i,n), yp(r.norm/MAXN,0,1)]);
-  const g=DATA.meta.grok;
-  const stepIdx = s => { let best=0; rows.forEach((r,i)=>{ if(r.step<=s) best=i; }); return best; };
+function accChart(){
+  const MN=maxNorm(), cur=ROWS[IDX]?ROWS[IDX].step:0, fit=fitStep(), grok=grokStep();
+  const tr=ROWS.map(r=>[xstep(r.step), yp(r.train_acc,0,1)]);
+  const va=ROWS.map(r=>[xstep(r.step), yp(r.val_acc,0,1)]);
+  const nm=ROWS.map(r=>[xstep(r.step), yp(r.norm/MN,0,1)]);
   let shade='', marks='';
-  if(WHICH==='grokked' && g.fit_at!=null && g.grok_at!=null){
-    const x0=xp(stepIdx(g.fit_at),n), x1=xp(stepIdx(g.grok_at),n);
+  if(fit!=null){
+    const x0=xstep(fit), x1=xstep(grok!=null?grok:cur);
     shade=`<rect x="${x0}" y="${PAD.t}" width="${Math.max(0,x1-x0)}" height="${H-PAD.t-PAD.b}" fill="var(--ok)" opacity=".08"/>`;
     marks=`<line x1="${x0}" y1="${PAD.t}" x2="${x0}" y2="${H-PAD.b}" stroke="var(--train)" stroke-dasharray="3 3" opacity=".55"/>
-           <text x="${x0+3}" y="${PAD.t+11}" fill="var(--train)" font-size="10">fits</text>
-           <line x1="${x1}" y1="${PAD.t}" x2="${x1}" y2="${H-PAD.b}" stroke="var(--ok)" stroke-dasharray="3 3" opacity=".65"/>
+           <text x="${x0+3}" y="${PAD.t+11}" fill="var(--train)" font-size="10">fits</text>`;
+    if(grok!=null) marks+=`<line x1="${x1}" y1="${PAD.t}" x2="${x1}" y2="${H-PAD.b}" stroke="var(--ok)" stroke-dasharray="3 3" opacity=".65"/>
            <text x="${x1+3}" y="${PAD.t+24}" fill="var(--ok)" font-size="10">groks</text>`;
   }
-  const cx=xp(cur,n);
+  const cx=xstep(cur);
   const yt=[0,.5,1].map(v=>`<line x1="${PAD.l}" y1="${yp(v,0,1)}" x2="${W-PAD.r}" y2="${yp(v,0,1)}" stroke="var(--grid)"/>
      <text x="${PAD.l-5}" y="${yp(v,0,1)+3}" fill="var(--mut)" font-size="9" text-anchor="end">${v*100|0}%</text>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}">${shade}${yt}${marks}
-    <line id="acur" x1="${cx}" y1="${PAD.t}" x2="${cx}" y2="${H-PAD.b}" stroke="var(--ink)" stroke-width="1.4" opacity=".85"/>
+    <line x1="${cx}" y1="${PAD.t}" x2="${cx}" y2="${H-PAD.b}" stroke="var(--ink)" stroke-width="1.4" opacity=".85"/>
     <path d="${pth(nm)}" fill="none" stroke="var(--norm)" stroke-width="1.6" stroke-dasharray="5 3"/>
     <path d="${pth(tr)}" fill="none" stroke="var(--train)" stroke-width="2"/>
     <path d="${pth(va)}" fill="none" stroke="var(--held)" stroke-width="2"/>
     <text x="${PAD.l}" y="${H-4}" fill="var(--mut)" font-size="10">step 0</text>
-    <text x="${W-PAD.r}" y="${H-4}" fill="var(--mut)" font-size="10" text-anchor="end">training steps &rarr;</text>
+    <text x="${W-PAD.r}" y="${H-4}" fill="var(--mut)" font-size="10" text-anchor="end">${META?META.steps:''} steps &rarr;</text>
   </svg>`;
 }
-function specChart(row, p){
-  const s=row.spectrum, m=s.length, base=1/(p>>1);
+function specChart(row){
+  const p=META.p, s=row.spectrum, m=s.length, base=1/(p>>1);
   const w=(W-PAD.l-PAD.r)/m*0.7, gap=(W-PAD.l-PAD.r)/m;
   let bars='';
-  for(let k=0;k<m;k++){
-    const x=PAD.l+k*gap+gap*0.15, h=(s[k])*(H-PAD.t-PAD.b), y=H-PAD.b-h;
+  for(let k=0;k<m;k++){ const x=PAD.l+k*gap+gap*0.15, h=s[k]*(H-PAD.t-PAD.b), y=H-PAD.b-h;
     bars+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="var(--held)" rx="2"/>
-           <text x="${x+w/2}" y="${H-PAD.b+13}" fill="var(--mut)" font-size="10" text-anchor="middle">k=${k+1}</text>`;
-  }
+           <text x="${x+w/2}" y="${H-PAD.b+13}" fill="var(--mut)" font-size="10" text-anchor="middle">k=${k+1}</text>`; }
   const by=H-PAD.b-base*(H-PAD.t-PAD.b);
   return `<svg viewBox="0 0 ${W} ${H}">
     <line x1="${PAD.l}" y1="${by}" x2="${W-PAD.r}" y2="${by}" stroke="var(--mut)" stroke-dasharray="4 3"/>
     <text x="${W-PAD.r}" y="${by-4}" fill="var(--mut)" font-size="9" text-anchor="end">diffuse (memorizing)</text>
-    ${bars}
-    <text x="${PAD.l}" y="${PAD.t+2}" fill="var(--mut)" font-size="10">embedding energy per frequency</text>
+    ${bars}<text x="${PAD.l}" y="${PAD.t+2}" fill="var(--mut)" font-size="10">embedding energy per frequency</text>
   </svg>`;
 }
-
-function rows(){ return DATA[WHICH]; }
 function draw(){
-  const r=rows()[IDX], p=DATA.meta.p;
-  document.getElementById('specbox').innerHTML=specChart(r,p);
-  const cx=xp(IDX,rows().length).toFixed(1);
-  const el=document.getElementById('acur'); if(el){ el.setAttribute('x1',cx); el.setAttribute('x2',cx); }
-  const groked = r.val_acc>=0.9;
+  if(!ROWS.length || !META) return;
+  const r=ROWS[IDX], fit=fitStep(), grok=grokStep(), groked=r.val_acc>=0.9;
+  document.getElementById('accbox').innerHTML=accChart();
+  document.getElementById('specbox').innerHTML=specChart(r);
+  document.getElementById('wgrid').innerHTML=weightGrid(r.w);
   document.getElementById('state').innerHTML=
     `<div class="srow"><span>step</span><b>${r.step}</b></div>
      <div class="srow"><span>train acc</span><b>${(r.train_acc*100).toFixed(0)}%</b></div>
      <div class="srow"><span>held-out acc</span><b class="${groked?'match':(r.val_acc<0.2?'nomatch':'')}">${(r.val_acc*100).toFixed(0)}%</b></div>
      <div class="srow"><span>weight norm</span><b>${r.norm.toFixed(1)}</b></div>
      <div class="srow"><span>top-2 freq energy</span><b class="${r.top2>=0.8?'match':''}">${r.top2.toFixed(2)}</b></div>`;
-  let phase='memorized (fit, waiting)';
-  const g=DATA.meta.grok;
+  let phase;
   if(WHICH==='memorized') phase='MEMORIZES: never generalizes';
-  else if(g.grok_at!=null && r.step>=g.grok_at) phase='GROKKED: generalized, spectrum sharp';
-  else if(g.fit_at!=null && r.step>=g.fit_at) phase='ON THE PLATEAU: fit, norm falling';
+  else if(grok!=null && r.step>=grok) phase='GROKKED: generalized, spectrum sharp';
+  else if(fit!=null && r.step>=fit) phase='ON THE PLATEAU: fit, norm falling';
   else phase='fitting the practice set';
   document.getElementById('phase').innerHTML=phase;
-  document.getElementById('scrub').value=IDX;
+  const sc=document.getElementById('scrub'); sc.max=Math.max(1,ROWS.length-1); sc.value=IDX;
 }
-function setIdx(i){ IDX=Math.max(0,Math.min(rows().length-1,i)); draw(); }
-function rebuild(){
-  MAXN=Math.max(...DATA.grokked.map(r=>r.norm), ...DATA.memorized.map(r=>r.norm));
-  document.getElementById('accbox').innerHTML=accChart(rows(), IDX);
-  draw();
-}
-function animate(){ if(PLAY) clearInterval(PLAY); IDX=0; rebuild();
-  const N=rows().length, inc=Math.max(1,Math.floor(N/120));
-  PLAY=setInterval(()=>{ if(IDX>=N-1){clearInterval(PLAY);PLAY=null;return;} setIdx(IDX+inc); },33); }
+function setIdx(i){ IDX=Math.max(0,Math.min(ROWS.length-1,i)); FOLLOW=(IDX>=ROWS.length-1); draw(); }
 
-function render(){
-  const g=DATA.meta.grok, m=DATA.meta;
-  document.getElementById('hero').innerHTML=
-    `<h2>${m.n_params.toLocaleString()} weights &middot; (a+b) mod ${m.p} &middot; ${m.n_train} train / ${m.n_val} held-out</h2>
-     <div class="seg" id="seg">
-       <button class="segbtn on" data-k="grokked">the grokking model</button>
-       <button class="segbtn" data-k="memorized">a memorizing control</button>
-     </div>
-     <div class="legend"><span><span class="sw" style="background:var(--train)"></span>train accuracy</span>
-       <span><span class="sw" style="background:var(--held)"></span>held-out accuracy</span>
-       <span><span class="sw" style="background:var(--norm)"></span>weight norm (scaled)</span>
-       <span><span class="sw" style="background:var(--ok);opacity:.5"></span>plateau</span></div>
-     <div class="pair"><div id="accbox"></div><div id="specbox"></div></div>
-     <div class="scrubwrap"><button class="btn" id="play">&#9654; watch it train</button>
-       <input type="range" id="scrub" min="0" max="1" value="0" step="1"><span class="phase" id="phase"></span></div>
-     <div class="state" id="state"></div>
-     <div class="facts">Train fits by <b>step ${g.fit_at}</b>; held-out only reaches 100% around <b>step ${g.grok_at}</b>,
-       a real plateau of thousands of steps, and the weight norm <b>turns over</b> (rises, then falls) as it
-       groks. The memorizing control fits just as fast and never generalizes; its spectrum stays flat.</div>`;
-  document.getElementById('scrub').max=rows().length-1;
-  document.getElementById('scrub').addEventListener('input',e=>{ if(PLAY){clearInterval(PLAY);PLAY=null;} setIdx(+e.target.value); });
-  document.getElementById('play').addEventListener('click',animate);
-  document.getElementById('seg').addEventListener('click',e=>{ const b=e.target.closest('.segbtn'); if(!b)return;
-    WHICH=b.dataset.k; IDX=0;
-    document.querySelectorAll('#seg .segbtn').forEach(x=>x.classList.toggle('on',x.dataset.k===WHICH));
-    document.getElementById('scrub').max=rows().length-1; rebuild(); });
-  rebuild();
+function start(which){
+  if(ES){ ES.close(); ES=null; }
+  WHICH=which; ROWS=[]; IDX=0; FOLLOW=true; META=null; MAXW=0.5;
+  document.querySelectorAll('#seg .segbtn').forEach(x=>x.classList.toggle('on',x.dataset.k===which));
+  document.getElementById('status').textContent='training '+(which==='memorized'?'the memorizing control':'the grokking model')+' live…';
+  document.getElementById('accbox').innerHTML=''; document.getElementById('specbox').innerHTML='';
+  document.getElementById('wgrid').innerHTML='';
+  ES=new EventSource('/api/grokking/stream?which='+which);
+  ES.addEventListener('meta',e=>{ META=JSON.parse(e.data);
+    document.getElementById('htitle').textContent=
+      META.n_params.toLocaleString()+' weights · (a+b) mod '+META.p+' · '+META.n_train+' train / '+META.n_val+' held-out'; });
+  ES.onmessage=e=>{ ROWS.push(JSON.parse(e.data)); if(FOLLOW) IDX=ROWS.length-1; draw();
+    document.getElementById('status').textContent='training… step '+ROWS[ROWS.length-1].step+' / '+(META?META.steps:''); };
+  ES.addEventListener('done',()=>{ if(ES){ES.close();ES=null;}
+    const g=grokStep(), f=fitStep();
+    document.getElementById('status').innerHTML = which==='memorized'
+      ? 'done: memorized, never generalized. Drag the slider to review, or retrain.'
+      : 'done: fit at step '+f+', grokked at step '+g+'. Drag the slider to review, or retrain.'; });
+  ES.addEventListener('fail',e=>{ if(ES){ES.close();ES=null;} let m={}; try{m=JSON.parse(e.data);}catch(_){}
+    document.getElementById('status').innerHTML='<span class="nomatch">cannot train live: '+esc(m.error||'numpy not available')
+      +'.</span> Install numpy (<span class="mono">pip install -r grokking/requirements.txt</span>) and restart the server.'; });
+  ES.onerror=()=>{ if(ES){ document.getElementById('status').textContent='connection interrupted — press retrain.'; } };
 }
-fetch('/api/grokking').then(r=>{ if(!r.ok) throw new Error('not built'); return r.json(); })
-  .then(d=>{ DATA=d; render(); })
-  .catch(()=>{ document.getElementById('hero').innerHTML=
-    '<div class="notbuilt">The bigger-model data has not been built yet. From the repo root run '
-    +'<span class="mono">python3 grokking/build_viz.py</span> (needs numpy), then reload. It trains the model once '
-    +'(~1-2 min) and writes <span class="mono">server/grok_viz.json</span>.</div>'; });
+
+let STARTED=false;
+function goLabel(){
+  const which=WHICH==='memorized'?'the memorizing control':'the grokking model';
+  document.getElementById('gobtn').innerHTML=(STARTED?'&#8635; Retrain ':'&#9654; Start training ')+which;
+}
+document.getElementById('hero').innerHTML=
+  `<h2 id="htitle">a bigger model</h2>
+   <div class="seg" id="seg">
+     <button class="segbtn on" data-k="grokked">the grokking model</button>
+     <button class="segbtn" data-k="memorized">a memorizing control</button>
+   </div>
+   <div style="margin:12px 0"><button class="btn gobtn" id="gobtn">&#9654; Start training the grokking model</button></div>
+   <div class="legend"><span><span class="sw" style="background:var(--train)"></span>train accuracy</span>
+     <span><span class="sw" style="background:var(--held)"></span>held-out accuracy</span>
+     <span><span class="sw" style="background:var(--norm)"></span>weight norm (scaled)</span>
+     <span><span class="sw" style="background:var(--ok);opacity:.5"></span>plateau</span></div>
+   <div class="pair"><div id="accbox"></div><div id="specbox"></div></div>
+   <div class="wpanel"><div class="wtitle">an assorted sample of the model's 36,288 weights, live (blue = negative, pink = positive, brighter = larger)</div><div class="wgrid" id="wgrid"></div></div>
+   <div id="status" style="font-size:12.5px;color:var(--mut);margin-top:8px">Press <b>Start training</b> to train the model live and watch it learn.</div>
+   <div class="scrubwrap"><input type="range" id="scrub" min="0" max="1" value="0" step="1">
+     <span class="phase" id="phase"></span></div>
+   <div class="state" id="state"></div>
+   <div class="facts">This trains for real, live. Train accuracy fits early; held-out accuracy stays flat across a
+     <b>plateau</b>, then jumps to 100% as the weight norm <b>turns over</b> (rises, then falls). The memorizing
+     control fits just as fast and never generalizes; its embedding spectrum stays flat.</div>`;
+document.getElementById('gobtn').addEventListener('click',()=>{ STARTED=true; start(WHICH); goLabel(); });
+document.getElementById('seg').addEventListener('click',e=>{ const b=e.target.closest('.segbtn'); if(!b)return;
+  WHICH=b.dataset.k; document.querySelectorAll('#seg .segbtn').forEach(x=>x.classList.toggle('on',x.dataset.k===WHICH));
+  goLabel(); if(STARTED) start(WHICH); });
+document.getElementById('scrub').addEventListener('input',e=>setIdx(+e.target.value));
 </script>
 </body></html>
 """
