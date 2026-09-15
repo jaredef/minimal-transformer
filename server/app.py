@@ -36,9 +36,10 @@ def grok_modules():
         if GROKDIR not in sys.path:
             sys.path.insert(0, GROKDIR)
         import modadd
+        import tinymod
         import fourier
-        _GROK["modadd"], _GROK["fourier"] = modadd, fourier
-    return _GROK["modadd"], _GROK["fourier"]
+        _GROK["modadd"], _GROK["tinymod"], _GROK["fourier"] = modadd, tinymod, fourier
+    return _GROK["modadd"], _GROK["tinymod"], _GROK["fourier"]
 
 # record EVERY step so the scrubber moves one training step at a time
 VIZ_STEPS = 400
@@ -172,9 +173,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _stream_grokking(self, qs):
         """Train a grokking (or memorizing) model live and stream each checkpoint as Server-Sent
-        Events, so the page can plot the trajectory as it actually trains."""
+        Events, so the page can plot the trajectory as it actually trains. Two sizes: 'big' (~36k-param
+        mod-11 MLP) and 'tiny' (~539-param additive model, smaller than any published trained-grok model)."""
         try:
-            modadd, fourier = grok_modules()
+            modadd, tinymod, fourier = grok_modules()
         except Exception as exc:  # numpy missing, etc.
             msg = ("event: fail\ndata: " + json.dumps({"error": str(exc)}) + "\n\n").encode("utf-8")
             self.send_response(200)
@@ -183,13 +185,22 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(msg)
             return
         which = qs.get("which", ["grokked"])[0]
-        act, wd = ("relu", 1.0) if which == "memorized" else ("quad", 1.0)
-        # frac 0.8 groks reliably early; steps sized so the grok lands mid-graph, never off the edge.
-        p, d, H, frac, steps, ckpt = 11, 64, 256, 0.8, 12000, 200
-        # verified seeds that grok cleanly by ~step 7000 (so the jump always lands mid-graph); pick one
-        # at random for variety on retrain. Many random seeds do NOT grok in budget, hence the pool.
-        # The memorizing control never groks, so any seed is fine.
-        pool = [0, 1, 4, 5, 7, 8, 13]
+        size = qs.get("size", ["big"])[0]
+        act = "relu" if which == "memorized" else "quad"
+        if size == "tiny":
+            mod, p, H = tinymod, 11, 24
+            frac, steps, ckpt = 0.85, 25000, 250
+            n_params = 2 * p * H + p                       # ~539
+            # annealed seeds that show a clear plateau AND settle cleanly (held-out holds ~95-100%
+            # instead of oscillating). A stable exact 100% is unreliable at this size (see note on page).
+            pool = [15, 18, 26]
+            kw = dict(act=act, p=p, H=H, frac=frac, wd=1.0, steps=steps, ckpt=ckpt, anneal=True)
+        else:
+            mod, p, H = modadd, 11, 256
+            frac, steps, ckpt = 0.8, 12000, 200
+            n_params = p * 64 + 2 * 64 * H + H * p          # ~36,288
+            pool = [0, 1, 4, 5, 7, 8, 13]
+            kw = dict(act=act, p=p, d=64, H=H, frac=frac, wd=1.0, steps=steps, ckpt=ckpt)
         try:
             seed = int(qs["seed"][0])
         except (KeyError, ValueError):
@@ -205,26 +216,36 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write((head + "data: " + data + "\n\n").encode("utf-8"))
             self.wfile.flush()
 
-        np = modadd.np
-        # a fixed, assorted sample of 96 weights spread evenly across all three matrices
-        # (embeddings E, layer 1 W1, layer 2 W2), so the heatmap shows the whole model at a glance.
-        n_params = p * d + 2 * d * H + H * p
-        w_idx = np.linspace(0, n_params - 1, 96).astype(int)
+        np = mod.np
+        full_weights = (size == "tiny")  # tiny model is small enough to show EVERY weight
+        box_target = 576                  # ~24x24 box for the larger model (pooled)
 
         def on_ckpt(step, params, ta, va, wn):
             spec = fourier.embedding_spectrum(params["E"], p)
-            flat = np.concatenate([params["E"].ravel(), params["W1"].ravel(), params["W2"].ravel()])
+            if full_weights:
+                # every parameter (including biases), as a square box of colored cells.
+                w = [round(float(x), 3) for x in np.concatenate([params[k].ravel() for k in sorted(params)])]
+                pooled_by = 1
+            else:
+                # too many to show; downsample contiguous blocks into a square box. Use signed max-abs
+                # per block (the strongest weight, with its sign) -- mean-pooling would cancel to ~0
+                # since weights are near zero-mean, washing the box out.
+                flat = np.concatenate([params[k].ravel() for k in sorted(params) if params[k].ndim >= 2])
+                bs = max(1, len(flat) // box_target)
+                n = len(flat) // bs
+                blk = flat[:n * bs].reshape(n, bs)
+                sel = blk[np.arange(n), np.abs(blk).argmax(1)]
+                w = [round(float(x), 3) for x in sel]
+                pooled_by = bs
             sse(None, {"step": step, "train_acc": round(ta, 4), "val_acc": round(va, 4),
                        "norm": round(wn, 3), "top2": round(fourier.concentration(spec, 2), 4),
-                       "spectrum": [round(float(x), 4) for x in spec],
-                       "w": [round(float(flat[i]), 3) for i in w_idx]})
+                       "spectrum": [round(float(x), 4) for x in spec], "w": w, "pooled_by": pooled_by})
 
         try:
-            sse("meta", {"p": p, "d": d, "H": H, "frac": frac, "steps": steps, "which": which,
+            sse("meta", {"p": p, "H": H, "frac": frac, "steps": steps, "which": which, "size": size,
                          "n_train": int(frac * p * p), "n_val": p * p - int(frac * p * p),
-                         "n_params": p * d + 2 * d * H + H * p})
-            modadd.train(act=act, p=p, d=d, H=H, frac=frac, wd=wd, steps=steps, seed=seed,
-                         ckpt=ckpt, on_ckpt=on_ckpt)
+                         "n_params": n_params})
+            mod.train(seed=seed, on_ckpt=on_ckpt, **kw)
             sse("done", {})
         except (BrokenPipeError, ConnectionResetError):
             pass  # client navigated away or restarted; stop training this stream
@@ -351,6 +372,11 @@ PAGE = r"""<!doctype html>
   .terms a { margin:0 2px; }
   footer { color:var(--mut); font-size:12px; max-width:1100px; margin:0 auto; padding:0 20px 40px; }
   a { color:var(--train); }
+  details.section { max-width:1100px; margin:26px auto 10px; }
+  .sectionsummary { font-size:16px; font-weight:700; cursor:pointer; list-style:none; margin-bottom:10px; }
+  .sectionsummary::-webkit-details-marker { display:none; }
+  .sectionsummary::before { content:'\25B8'; color:var(--mut); margin-right:8px; font-weight:400; }
+  details.section[open] > .sectionsummary::before { content:'\25BE'; }
   @media (max-width:640px){
     .heropair { grid-template-columns:1fr !important; }
     .staterow.wide { white-space:normal; overflow:visible; }
@@ -430,15 +456,21 @@ PAGE = r"""<!doctype html>
   <div class="grid" id="controls"></div>
   <h2 style="max-width:1100px;margin:26px auto 10px;font-size:16px;">Quiz the machine</h2>
   <div class="card" id="game"></div>
-  <h2 style="max-width:1100px;margin:26px auto 10px;font-size:16px;">Show me the code</h2>
-  <div class="card" id="codecard">__CODE_BLOCKS__</div>
+  <details class="section">
+    <summary class="sectionsummary">Show me the code</summary>
+    <div class="card" id="codecard">__CODE_BLOCKS__</div>
+  </details>
   <h2 style="max-width:1100px;margin:26px auto 10px;font-size:16px;">Try a bigger model</h2>
   <div class="card">
-    <p class="herohint" style="margin-top:0">This small model shows the max-margin bias, a smooth crossing with
-      no plateau. A bigger model learning modular addition groks in the strong sense: fits fast, sits on a long
-      plateau, then suddenly generalizes as its weight norm falls, with its internal representations sharpening
-      into a few Fourier frequencies.</p>
-    <a class="learnbtn" href="/grokking">See real grokking on a bigger model &rarr;</a>
+    <p class="herohint" style="margin-top:0">This model has just <b>9 weights</b> and shows the max-margin bias:
+      a smooth crossing, no plateau. Scale up and you get genuine grokking (fit fast, long plateau, then a sudden
+      jump as the weight norm falls). Watch either larger model train live on modular addition:</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+      <a class="learnbtn" href="/grokking?size=tiny">Watch the ~539-weight model &rarr;</a>
+      <a class="learnbtn" href="/grokking?size=big">Watch the ~36,288-weight model &rarr;</a>
+    </div>
+    <p class="herohint" style="margin-top:8px;font-size:12px">The ~539-weight model is smaller than any published
+      trained-and-grokked model we could find (the smallest we found is ~3,200 weights).</p>
   </div>
 </main>
 <section id="learn">
@@ -1555,7 +1587,13 @@ PAGE_GROKKING = r"""<!doctype html>
   .wgrid { display:grid; grid-template-columns:repeat(24,1fr); gap:2px; }
   .wcell { aspect-ratio:1; border-radius:2px; border:1px solid var(--line); }
   .seg { display:inline-flex; gap:4px; padding:4px; background:var(--bg); border:1px solid var(--line);
-         border-radius:10px; margin-top:8px; }
+         border-radius:10px; margin-top:4px; }
+  .seglabel { font-size:11px; color:var(--mut); margin-top:8px; text-transform:uppercase; letter-spacing:.04em; }
+  .sizenote { font-size:12px; color:var(--mut); margin-top:10px; line-height:1.5;
+              border-left:3px solid var(--norm); border-radius:0 8px 8px 0; background:var(--bg);
+              border:1px solid var(--line); border-left-width:3px; padding:8px 12px; }
+  .sizenote:empty { display:none; }
+  .specnote { font-size:12px; color:var(--mut); margin-top:6px; line-height:1.5; }
   .segbtn { background:transparent; border:none; color:var(--mut); font:600 12.5px ui-monospace, monospace;
             padding:6px 14px; border-radius:7px; cursor:pointer; }
   .segbtn.on { background:var(--held); color:#111; }
@@ -1594,9 +1632,10 @@ PAGE_GROKKING = r"""<!doctype html>
     <div>
       <h1>Try a bigger model: real grokking</h1>
       <p class="lede">The main demo is a 9-number model showing the max-margin bias, a smooth crossing with no
-        plateau. This is a bigger model (tens of thousands of weights) learning <b>modular addition</b>, and it groks in
-        the strong sense: it fits its practice set fast, sits on a long <b>plateau</b>, then <b>suddenly</b>
-        generalizes, driven by the weight size <i>falling</i>. Scrub through training and watch it happen.</p>
+        plateau. Here two larger models learn <b>modular addition</b> and grok in the strong sense: fit fast, sit
+        on a long <b>plateau</b>, then <b>suddenly</b> generalize as the weight size <i>falls</i>. Pick a size and
+        press start to train it live. The <b>~539-weight</b> model is smaller than any published trained-and-grokked
+        model we could find (the smallest we found is ~3,200); the <b>~36,288-weight</b> model is more robust.</p>
     </div>
     <a class="backbtn" href="/">&larr; the small model</a>
   </div>
@@ -1622,22 +1661,25 @@ PAGE_GROKKING = r"""<!doctype html>
   </section>
 
   <section class="topic">
-    <h2>The tell-tale sign: the Fourier spectrum sharpening</h2>
+    <h2>The tell-tale sign: the Fourier spectrum sharpening (larger model)</h2>
     <div class="layer plain"><div class="lbl">In plain terms</div>
-      <p>As it groks, the model reorganizes its internal number-representations into a few clean repeating waves.
-        The bar chart on the right shows this: it starts flat and messy (memorizing), and collapses onto a couple
-        of tall bars exactly as generalization kicks in. That structure <i>is</i> understanding the rule.</p></div>
+      <p>As the <b>~36,288-weight</b> model groks, it reorganizes its internal number-representations into a few
+        clean repeating waves. The bar chart on the right shows this: it starts flat and messy (memorizing), and
+        collapses onto a couple of tall bars exactly as generalization kicks in. That structure <i>is</i>
+        understanding the rule.</p></div>
     <div class="layer ml"><div class="lbl">In machine-learning terms</div>
-      <p>For modular addition with a quadratic activation, Gromov (2023) derives that the generalizing solution is
-        <b>periodic</b>: the embeddings become sparse in the Fourier basis. So we do not need to enumerate a weight
-        space (as the NAND demo does) to know the target, we <b>construct</b> it analytically and check the trained
-        embedding converges onto it, i.e. its energy concentrates in a few frequencies. Scrub and watch the top-2
-        frequency energy climb from the diffuse baseline toward ~1 as the model groks.</p></div>
+      <p>For modular addition with a quadratic activation, Gromov (2023) derives that <i>a</i> generalizing solution
+        is <b>periodic</b>: the embeddings become sparse in the Fourier basis. So we do not need to enumerate a
+        weight space (as the NAND demo does) to know that target, we <b>construct</b> it analytically and check the
+        larger model's embedding converges onto it, its energy concentrating in a few frequencies.</p></div>
     <div class="layer mt"><div class="lbl">In terms of the construction</div>
-      <p>This is the NAND core's &ldquo;trained weight matches a computed reference&rdquo; idea, kept alive at
-        scale: the reference is Gromov's <i>constructed</i> Fourier solution rather than an <i>enumerated</i>
-        minimum-norm weight. The full ladder, the data-fraction threshold, and the ablations live in
-        <span class="mono">grokking/</span> in the repo.</p></div>
+      <p>This is the NAND core's &ldquo;trained weight matches a computed reference&rdquo; idea, kept alive at scale
+        for the larger model: the reference is Gromov's <i>constructed</i> Fourier solution rather than an
+        <i>enumerated</i> minimum-norm weight. <b>Caveat:</b> this is a property of the <b>larger</b> model. The
+        <b>~539-weight</b> model also groks (held-out generalizes), but via a <b>distributed</b> representation, its
+        Fourier spectrum stays flat and it does <i>not</i> converge to the sparse Fourier solution. Same phenomenon
+        (delayed generalization), different internal mechanism at the two sizes. The ladder, the data-fraction
+        threshold, and the ablations live in <span class="mono">grokking/</span> in the repo.</p></div>
   </section>
 
   <footer>Jared Foy &copy; 2026 &middot;
@@ -1646,7 +1688,8 @@ PAGE_GROKKING = r"""<!doctype html>
 
 <script>
 const W=560,H=240,PAD={l:40,r:14,t:16,b:30};
-let ROWS=[], META=null, WHICH='grokked', IDX=0, FOLLOW=true, ES=null, MAXW=0.5;
+let ROWS=[], META=null, WHICH='grokked', SIZE='big', IDX=0, FOLLOW=true, ES=null, MAXW=0.5;
+{ const _sz=new URLSearchParams(location.search).get('size'); if(_sz==='tiny'||_sz==='big') SIZE=_sz; }
 function weightGrid(w){
   if(!w) return '';
   for(const v of w){ const a=Math.abs(v); if(a>MAXW) MAXW=a; }
@@ -1707,7 +1750,9 @@ function draw(){
   const r=ROWS[IDX], fit=fitStep(), grok=grokStep(), groked=r.val_acc>=0.9;
   document.getElementById('accbox').innerHTML=accChart();
   document.getElementById('specbox').innerHTML=specChart(r);
-  document.getElementById('wgrid').innerHTML=weightGrid(r.w);
+  const wg=document.getElementById('wgrid');
+  wg.style.gridTemplateColumns='repeat('+Math.max(1,Math.round(Math.sqrt(r.w.length)))+',1fr)';
+  wg.innerHTML=weightGrid(r.w);
   document.getElementById('state').innerHTML=
     `<div class="srow"><span>step</span><b>${r.step}</b></div>
      <div class="srow"><span>train acc</span><b>${(r.train_acc*100).toFixed(0)}%</b></div>
@@ -1731,10 +1776,17 @@ function start(which){
   document.getElementById('status').textContent='training '+(which==='memorized'?'the memorizing control':'the grokking model')+' live…';
   document.getElementById('accbox').innerHTML=''; document.getElementById('specbox').innerHTML='';
   document.getElementById('wgrid').innerHTML='';
-  ES=new EventSource('/api/grokking/stream?which='+which);
+  ES=new EventSource('/api/grokking/stream?which='+which+'&size='+SIZE);
   ES.addEventListener('meta',e=>{ META=JSON.parse(e.data);
     document.getElementById('htitle').textContent=
-      META.n_params.toLocaleString()+' weights · (a+b) mod '+META.p+' · '+META.n_train+' train / '+META.n_val+' held-out'; });
+      META.n_params.toLocaleString()+' weights · (a+b) mod '+META.p+' · '+META.n_train+' train / '+META.n_val+' held-out';
+    document.getElementById('wtitle').textContent= (META.size==='tiny'
+      ? "every one of the model's "+META.n_params.toLocaleString()+' weights, live'
+      : "the model's "+META.n_params.toLocaleString()+' weights, downsampled to a box (strongest of every ~'+Math.floor(META.n_params/576)+'), live')
+      +' (blue = negative, pink = positive, brighter = larger)';
+    document.getElementById('specnote').innerHTML = META.size==='tiny'
+      ? 'The ~539 model generalizes via a <b>distributed</b> representation, so unlike the larger model its spectrum <b>stays flat</b> (it does not find the sparse Fourier solution).'
+      : 'Watch the energy collapse onto a <b>few frequencies</b> as it groks, the sparse Fourier solution.'; });
   ES.onmessage=e=>{ ROWS.push(JSON.parse(e.data)); if(FOLLOW) IDX=ROWS.length-1; draw();
     document.getElementById('status').textContent='training… step '+ROWS[ROWS.length-1].step+' / '+(META?META.steps:''); };
   ES.addEventListener('done',()=>{ if(ES){ES.close();ES=null;}
@@ -1755,17 +1807,25 @@ function goLabel(){
 }
 document.getElementById('hero').innerHTML=
   `<h2 id="htitle">a bigger model</h2>
-   <div class="seg" id="seg">
-     <button class="segbtn on" data-k="grokked">the grokking model</button>
-     <button class="segbtn" data-k="memorized">a memorizing control</button>
+   <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+     <div><div class="seglabel">model size</div><div class="seg" id="sizeseg">
+       <button class="segbtn on" data-s="big">~36,288 weights</button>
+       <button class="segbtn" data-s="tiny">~539 weights</button>
+     </div></div>
+     <div><div class="seglabel">what to train</div><div class="seg" id="seg">
+       <button class="segbtn on" data-k="grokked">the grokking model</button>
+       <button class="segbtn" data-k="memorized">a memorizing control</button>
+     </div></div>
    </div>
+   <div class="sizenote" id="sizenote"></div>
    <div style="margin:12px 0"><button class="btn gobtn" id="gobtn">&#9654; Start training the grokking model</button></div>
    <div class="legend"><span><span class="sw" style="background:var(--train)"></span>train accuracy</span>
      <span><span class="sw" style="background:var(--held)"></span>held-out accuracy</span>
      <span><span class="sw" style="background:var(--norm)"></span>weight norm (scaled)</span>
      <span><span class="sw" style="background:var(--ok);opacity:.5"></span>plateau</span></div>
    <div class="pair"><div id="accbox"></div><div id="specbox"></div></div>
-   <div class="wpanel"><div class="wtitle">an assorted sample of the model's 36,288 weights, live (blue = negative, pink = positive, brighter = larger)</div><div class="wgrid" id="wgrid"></div></div>
+   <div class="specnote" id="specnote"></div>
+   <div class="wpanel"><div class="wtitle" id="wtitle">an assorted sample of the model's weights, live (blue = negative, pink = positive, brighter = larger)</div><div class="wgrid" id="wgrid"></div></div>
    <div id="status" style="font-size:12.5px;color:var(--mut);margin-top:8px">Press <b>Start training</b> to train the model live and watch it learn.</div>
    <div class="scrubwrap"><input type="range" id="scrub" min="0" max="1" value="0" step="1">
      <span class="phase" id="phase"></span></div>
@@ -1777,7 +1837,19 @@ document.getElementById('gobtn').addEventListener('click',()=>{ STARTED=true; st
 document.getElementById('seg').addEventListener('click',e=>{ const b=e.target.closest('.segbtn'); if(!b)return;
   WHICH=b.dataset.k; document.querySelectorAll('#seg .segbtn').forEach(x=>x.classList.toggle('on',x.dataset.k===WHICH));
   goLabel(); if(STARTED) start(WHICH); });
+function updateSizeNote(){
+  document.getElementById('sizenote').innerHTML = SIZE==='tiny'
+    ? 'Note: at ~539 weights the held-out set is only ~18 examples and a stable <b>exact 100%</b> is unreliable, '
+      +'it typically settles around <b>95&ndash;100%</b> (annealed so it holds steady rather than wobbling). For a '
+      +'held-out accuracy that reliably reaches and holds 100%, use the <b>~36,288-weight</b> model.'
+    : '';
+}
+document.getElementById('sizeseg').addEventListener('click',e=>{ const b=e.target.closest('.segbtn'); if(!b)return;
+  SIZE=b.dataset.s; document.querySelectorAll('#sizeseg .segbtn').forEach(x=>x.classList.toggle('on',x.dataset.s===SIZE));
+  updateSizeNote(); if(STARTED) start(WHICH); });
 document.getElementById('scrub').addEventListener('input',e=>setIdx(+e.target.value));
+document.querySelectorAll('#sizeseg .segbtn').forEach(x=>x.classList.toggle('on',x.dataset.s===SIZE));
+updateSizeNote();
 </script>
 </body></html>
 """
