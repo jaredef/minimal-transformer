@@ -107,6 +107,17 @@ python3 probes/nand_orbit_probe.py    fixtures/grok-is-prior-conditional.json
 python3 probes/nand_grok_sgd_probe.py fixtures/nand-groks-in-time.json
 ```
 
+## Scaled companion: genuine grokking
+
+The core above is the implicit **max-margin bias**, not grokking in the strong sense (a smooth
+threshold crossing, no plateau, norm only grows). [`grokking/`](grokking/) grows it into *genuine*
+grokking on modular addition — a real plateau then a sudden late jump, driven by the weight norm
+falling under weight decay — by **accumulating the constraints that induce it** (weight decay,
+quadratic activation, enough capacity and data) and showing each is load-bearing by **ablation**.
+The generalizing solution is checked against Gromov's (2023) analytic **Fourier** construction, so
+the "trained model matches a computed reference" idea survives the scale-up. That subdirectory
+requires numpy; the core here stays dependency-free. See [`grokking/README.md`](grokking/README.md).
+
 ## Prior work
 
 None of the phenomena here are new; the contribution, if any, is the scale and the exactness of the exhibit.
