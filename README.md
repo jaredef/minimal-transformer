@@ -138,12 +138,6 @@ mechanistic identity with grokking in large models.
 - **Small-scale analog.** This illustrates the same *kind* of effect studied in large models; it is not
   evidence about the mechanism of grokking at scale.
 
-## Provenance
-
-Extracted and extended from the GCCS research corpus (`machines/transformer-nand-orbit`, NO-1..3, and after
-`machines/transformer-grokking-dynamics`). NO-4..6 are added here: the gradient-descent-in-time grok on the
-NAND encoding, and the margin-crossing and enumerate-and-match evidence.
-
 ## License
 
 Jared Foy © 2026. Licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — share and adapt,
